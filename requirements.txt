@@ -1,0 +1,7 @@
+chromadb        
+openai          
+pymupdf         
+python-dotenv   
+tiktoken        
+rich            
+pytest
