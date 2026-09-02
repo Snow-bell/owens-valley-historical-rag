@@ -25,7 +25,7 @@ def get_metadata(filepath: Path) -> Dict:
         metadata = CORPUS_REGISTRY["__womens_club_default__"].copy()
         
     elif "owensvalleyhistory" in str(filepath):
-    metadata = CORPUS_REGISTRY["__owensvalleyhistory_default__"].copy()
+        metadata = CORPUS_REGISTRY["__owensvalleyhistory_default__"].copy()
 
     # Unknown file — flag it rather than silently ingesting
     else:
