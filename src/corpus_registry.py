@@ -135,6 +135,18 @@ CORPUS_REGISTRY = {
             "Period accounts of influential California women."
         ),
     },
+    
+    # --- Tier 2: Owens Valley History Documents ---
+    "__owensvalleyhistory_default__": {
+        "tier": 2,
+        "bias_tag": "none",
+        "bias_level": "none",
+        "description": (
+            "Primary source document from owensvalleyhistory.com — "
+            "local histories, period accounts, and newspaper archives "
+            "of the Owens Valley region."
+        ),
+    }
 
     # --- Tier 3: Secondary and Reference Sources ---
     "california-geography-ch5-water.pdf": {

@@ -56,7 +56,10 @@ def load_corpus() -> List[Dict]:
     Load all PDFs from the corpus directory recursively.
     Returns a list of dicts with 'text' and 'metadata' for each document.
     """
-    pdf_files = sorted(CORPUS_DIR.rglob("*.pdf"))
+    corpus_files = sorted(
+        list(CORPUS_DIR.rglob("*.pdf")) +
+        list(CORPUS_DIR.rglob("*.txt"))
+    )
 
     if not pdf_files:
         raise FileNotFoundError(f"No PDFs found in {CORPUS_DIR}")

@@ -158,7 +158,11 @@ env.bak/
 venv.bak/
 
 # Corpus documents (copyrighted, not for distribution)
-*.pdf
+data/corpus/*.pdf
+data/corpus/chronicling-america/*.pdf
+data/corpus/womens-club-biographies/*.pdf
+data/corpus/owensvalleyhistory/*
+!data/corpus/owensvalleyhistory/.gitkeep
 
 # ChromaDB local storage
 data/chroma/*
