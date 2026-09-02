@@ -22,20 +22,26 @@ critical evaluation of retrieved content before use in creative work. This tool 
 ---
 
 ## Architecture
-Query (CLI)
-↓
-retrieve.py — embeds query, finds top-k similar chunks via ChromaDB
-↓
-generate.py — sends retrieved chunks + query to GPT-4o-mini
-↓
-main.py — handles CLI interaction, surfaces answer and bias warnings
 
-### Evaluation pipeline
-evaluate.py — runs predefined test queries through full pipeline
-↓
-judge.py — scores each answer on 4 dimensions via LLM-as-judge
-↓
+**Query pipeline**
+```
+Query (CLI)
+    ↓
+retrieve.py   — embeds query, finds top-k similar chunks via ChromaDB
+    ↓
+generate.py   — sends retrieved chunks + query to GPT-4o-mini
+    ↓
+main.py       — handles CLI interaction, surfaces answer and bias warnings
+```
+
+**Evaluation pipeline**
+```
+evaluate.py   — runs predefined test queries through full pipeline
+    ↓
+judge.py      — scores each answer on 4 dimensions via LLM-as-judge
+    ↓
 outputs/eval_results.csv
+```
 
 ---
 
