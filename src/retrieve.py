@@ -10,6 +10,22 @@ from src.embed import get_chroma_collection
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
+def diversify(chunks: List[Dict], max_per_source: int = 2) -> List[Dict]:
+    """
+    Limits chunks per source to prevent any single document
+    from dominating retrieval results.
+    """
+    seen = {}
+    result = []
+    for chunk in chunks:
+        source = chunk["metadata"]["source"]
+        count = seen.get(source, 0)
+        if count < max_per_source:
+            seen[source] = count + 1
+            result.append(chunk)
+    return result
+
+
 def embed_query(query: str) -> List[float]:
     """
     Embed a user query using the same model as the corpus.
@@ -22,18 +38,13 @@ def embed_query(query: str) -> List[float]:
 
 
 def retrieve(query: str, top_k: int = TOP_K) -> List[Dict]:
-    """
-    Embed the query and retrieve the top_k most similar
-    chunks from ChromaDB.
-
-    Returns a list of dicts with 'text' and 'metadata'.
-    """
     collection = get_chroma_collection()
     query_embedding = embed_query(query)
 
+    # Fetch 3x top_k to ensure diversity after filtering
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=top_k,
+        n_results=top_k * 3,
         include=["documents", "metadatas", "distances"],
     )
 
@@ -49,4 +60,4 @@ def retrieve(query: str, top_k: int = TOP_K) -> List[Dict]:
             "similarity": round(1 - distance, 4),
         })
 
-    return chunks
+    return diversify(chunks, max_per_source=2)[:top_k]

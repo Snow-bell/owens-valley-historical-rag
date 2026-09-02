@@ -23,6 +23,9 @@ def get_metadata(filepath: Path) -> Dict:
     # Apply womens club default for that subfolder
     elif "womens-club-biographies" in str(filepath):
         metadata = CORPUS_REGISTRY["__womens_club_default__"].copy()
+        
+    elif "owensvalleyhistory" in str(filepath):
+    metadata = CORPUS_REGISTRY["__owensvalleyhistory_default__"].copy()
 
     # Unknown file — flag it rather than silently ingesting
     else:
@@ -51,25 +54,34 @@ def extract_text(filepath: Path) -> str:
     return text.strip()
 
 
+def extract_text_file(filepath: Path) -> str:
+    try:
+        return filepath.read_text(encoding="utf-8").strip()
+    except Exception as e:
+        print(f"  [ERROR] Could not read {filepath.name}: {e}")
+        return ""
+    
+
 def load_corpus() -> List[Dict]:
-    """
-    Load all PDFs from the corpus directory recursively.
-    Returns a list of dicts with 'text' and 'metadata' for each document.
-    """
     corpus_files = sorted(
         list(CORPUS_DIR.rglob("*.pdf")) +
         list(CORPUS_DIR.rglob("*.txt"))
     )
 
-    if not pdf_files:
-        raise FileNotFoundError(f"No PDFs found in {CORPUS_DIR}")
+    if not corpus_files:
+        raise FileNotFoundError(f"No files found in {CORPUS_DIR}")
 
     documents = []
 
-    for filepath in pdf_files:
+    for filepath in corpus_files:
         print(f"  Loading: {filepath.name}")
         try:
-            text = extract_text(filepath)
+            if filepath.suffix == ".pdf":
+                text = extract_text(filepath)
+            elif filepath.suffix == ".txt":
+                text = extract_text_file(filepath)
+            else:
+                continue
 
             if not text:
                 print(f"  [WARNING] No text extracted from: {filepath.name}")
