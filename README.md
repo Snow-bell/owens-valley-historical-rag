@@ -49,8 +49,8 @@ outputs/eval_results.csv
 
 The corpus consists of 40+ primary and secondary source documents curated for 
 geographic and temporal relevance to the Owens Valley region, 1880–1915. Sources 
-span three tiers — direct indigenous voices, period primary sources, and secondary 
-reference material — each tagged with a bias classification and severity level.
+span three tiers: direct indigenous voices, period primary sources, and secondary 
+reference material. Each tagged with a bias classification and severity level.
 
 Full source registry with descriptions: [`src/corpus_registry.py`](src/corpus_registry.py)
 
@@ -124,7 +124,7 @@ Results saved to `outputs/eval_results.csv`.
 
 ### Source bias tagging
 Historical sources on the Owens Valley water conflict represent fundamentally 
-opposed perspectives — LA newspapers framing water acquisition as civic progress, 
+opposed perspectives; LA newspapers framing water acquisition as civic progress, 
 indigenous voices describing the same events as dispossession. Rather than 
 resolving these contradictions, the system surfaces them. Every retrieved chunk 
 carries its source's bias tag and severity level, and the generation prompt 
@@ -133,34 +133,34 @@ adopting one.
 
 ### Curated corpus over broad crawling
 Corpus documents were selected and tiered manually rather than scraped broadly. 
-This prioritizes retrieval precision over recall — a chunk from a relevant primary 
+This prioritizes retrieval precision over recall, a chunk from a relevant primary 
 source outperforms ten chunks from tangentially related material. Chapter-level 
 selection was applied to multi-chapter references to reduce noise from 
 geographically irrelevant content.
 
 ### LLM-as-judge evaluation
-Answer quality is scored automatically on four dimensions — contextual alignment, 
-source faithfulness, specificity, and bias handling — using a second GPT-4o-mini 
-call with temperature 0.0 for deterministic scoring. This removes subjective 
+Answer quality is scored automatically on four dimensions: contextual alignment, 
+source faithfulness, specificity, and bias handling. A second GPT-4o-mini 
+call was used with temperature 0.0 for deterministic scoring. This removes subjective 
 manual scoring and enables systematic comparison across query types.
 
 ### Local vector storage
 ChromaDB runs locally with no external dependencies. The corpus contains 
-sensitive historical material including indigenous primary sources — keeping 
+sensitive historical material including indigenous primary sources, keeping 
 embeddings and retrieval entirely local avoids sending that content to 
 third-party infrastructure beyond the generation API calls.
 
 ### Temperature 0.2 for generation, 0.0 for judgment
 Generation uses a low but non-zero temperature to allow natural language 
 variation in answers while staying grounded. The judge uses temperature 0.0 
-because scoring should be deterministic — the same answer should receive the 
+because scoring should be deterministic. The same answer should receive the 
 same score on every run.
 
 ---
 
 ## Known Limitations
 
-- **Ghosts of the Sagebrush** is primarily a photo document — extracted text 
+- **Ghosts of the Sagebrush** is primarily a photo document so extracted text 
   is fragmentary and retrieved chunks should be treated as partial context only.
 - OCR preprocessing is not implemented. All corpus documents must be 
   text-selectable PDFs.
