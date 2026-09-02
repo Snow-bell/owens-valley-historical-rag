@@ -21,8 +21,11 @@ TOP_P = 0.9
 MAX_TOKENS = 1000
 
 # Chunking
-CHUNK_SIZE = 500        # tokens per chunk
-CHUNK_OVERLAP = 50      
+CHUNK_SIZE = 800
+CHUNK_OVERLAP = 100
+
+# Ingestion
+MAX_CHARS = 15000   
 
 # Retrieval
 TOP_K = 5               
