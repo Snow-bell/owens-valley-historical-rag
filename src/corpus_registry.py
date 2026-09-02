@@ -146,7 +146,7 @@ CORPUS_REGISTRY = {
             "local histories, period accounts, and newspaper archives "
             "of the Owens Valley region."
         ),
-    }
+    },
 
     # --- Tier 3: Secondary and Reference Sources ---
     "california-geography-ch5-water.pdf": {
