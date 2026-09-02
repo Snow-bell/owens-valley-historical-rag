@@ -158,7 +158,7 @@ env.bak/
 venv.bak/
 
 # Corpus documents (copyrighted, not for distribution)
-data/corpus/
+*.pdf
 
 # ChromaDB local storage
 data/chroma/*
