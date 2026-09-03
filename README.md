@@ -2,8 +2,8 @@
 
 A domain-specific RAG (Retrieval-Augmented Generation) pipeline for querying 
 primary and secondary historical sources about the Owens Valley region of 
-California circa 1880–1915. Built to support historical fiction research with 
-period-accurate context retrieval and source bias transparency.
+California. Built to support historical fiction research with period-accurate 
+context retrieval and source bias transparency.
 
 ---
 
@@ -12,7 +12,9 @@ period-accurate context retrieval and source bias transparency.
 This tool allows a writer to ask natural language research questions and receive 
 grounded answers drawn exclusively from a curated corpus of historical documents. 
 Every answer is accompanied by source citations and bias warnings, enabling 
-critical evaluation of retrieved content before use in creative work. This tool retrieves and synthesizes historical context. Answers are grounded strictly in source passages.
+critical evaluation of retrieved content before use in creative work. Answers 
+are grounded strictly in source passages; this tool retrieves and synthesizes 
+historical context, it does not generate prose.
 
 **Example queries:**
 - *What did Paiute families eat during winter months?*
@@ -47,10 +49,14 @@ outputs/eval_results.csv
 
 ## Corpus
 
-The corpus consists of 40+ primary and secondary source documents curated for 
-geographic and temporal relevance to the Owens Valley region, 1880–1915. Sources 
+The corpus consists of 700+ documents spanning primary and secondary historical 
+sources curated for geographic relevance to the Owens Valley region. Sources 
 span three tiers: direct indigenous voices, period primary sources, and secondary 
-reference material. Each tagged with a bias classification and severity level.
+reference material. Each source is tagged with a bias classification and severity 
+level surfaced alongside every retrieval.
+
+Sources include indigenous ethnographies, period newspapers, government surveys, 
+local histories, and documents crawled from owensvalleyhistory.com.
 
 Full source registry with descriptions: [`src/corpus_registry.py`](src/corpus_registry.py)
 
@@ -65,7 +71,7 @@ Full source registry with descriptions: [`src/corpus_registry.py`](src/corpus_re
 ### Installation
 
 ```bash
-git clone https://github.com/YOURUSERNAME/owens-valley-historical-rag.git
+git clone https://github.com/Snow-bell/owens-valley-historical-rag.git
 cd owens-valley-historical-rag
 python -m venv .venv
 source .venv/bin/activate
@@ -82,7 +88,12 @@ OPENAI_API_KEY=your_key_here
 ### Add corpus documents
 
 Place your PDF corpus documents in `data/corpus/`, maintaining the subfolder 
-structure for `chronicling-america/` and `womens-club-biographies/`.
+structure for `chronicling-america/` and `womens-club-biographies/`. To crawl 
+owensvalleyhistory.com and populate `data/corpus/owensvalleyhistory/`:
+
+```bash
+python -m src.crawl
+```
 
 ---
 
@@ -124,37 +135,46 @@ Results saved to `outputs/eval_results.csv`.
 
 ### Source bias tagging
 Historical sources on the Owens Valley water conflict represent fundamentally 
-opposed perspectives; LA newspapers framing water acquisition as civic progress, 
-indigenous voices describing the same events as dispossession. Rather than 
+opposed perspectives. LA newspapers framed water acquisition as civic progress 
+while indigenous voices described the same events as dispossession. Rather than 
 resolving these contradictions, the system surfaces them. Every retrieved chunk 
 carries its source's bias tag and severity level, and the generation prompt 
 instructs the model to flag conflicting perspectives rather than arbitrarily 
 adopting one.
 
 ### Curated corpus over broad crawling
-Corpus documents were selected and tiered manually rather than scraped broadly. 
-This prioritizes retrieval precision over recall, a chunk from a relevant primary 
-source outperforms ten chunks from tangentially related material. Chapter-level 
-selection was applied to multi-chapter references to reduce noise from 
-geographically irrelevant content.
+Core corpus documents were selected and tiered manually rather than scraped 
+broadly. This prioritizes retrieval precision over recall. A chunk from a 
+relevant primary source outperforms ten chunks from tangentially related 
+material. Chapter-level selection was applied to multi-chapter references to 
+reduce noise from geographically irrelevant content. owensvalleyhistory.com 
+was crawled selectively, excluding the Mt. Whitney Pack Trains section as 
+outside the project's historical scope.
+
+### Source diversity filter
+Retrieval fetches three times the target chunk count then limits results to two 
+chunks per source before passing to generation. This prevents any single 
+document from dominating retrieval results, which is a particular concern given 
+the 700+ owensvalleyhistory pages in the corpus.
 
 ### LLM-as-judge evaluation
 Answer quality is scored automatically on four dimensions: contextual alignment, 
-source faithfulness, specificity, and bias handling. A second GPT-4o-mini 
-call was used with temperature 0.0 for deterministic scoring. This removes subjective 
-manual scoring and enables systematic comparison across query types.
+source faithfulness, specificity, and bias handling. A second GPT-4o-mini call 
+with temperature 0.0 for deterministic scoring removes subjective manual scoring 
+and enables systematic comparison across query types. The pipeline achieved 
+4.83/5 overall across 15 domain-specific test queries with a perfect 5.0 source 
+faithfulness score.
 
 ### Local vector storage
 ChromaDB runs locally with no external dependencies. The corpus contains 
-sensitive historical material including indigenous primary sources, keeping 
+sensitive historical material including indigenous primary sources. Keeping 
 embeddings and retrieval entirely local avoids sending that content to 
 third-party infrastructure beyond the generation API calls.
 
 ### Temperature 0.2 for generation, 0.0 for judgment
 Generation uses a low but non-zero temperature to allow natural language 
 variation in answers while staying grounded. The judge uses temperature 0.0 
-because scoring should be deterministic. The same answer should receive the 
-same score on every run.
+because scoring should be deterministic.
 
 ---
 
@@ -164,21 +184,21 @@ same score on every run.
   is fragmentary and retrieved chunks should be treated as partial context only.
 - OCR preprocessing is not implemented. All corpus documents must be 
   text-selectable PDFs.
-- The LLM judge uses the same model as generation (GPT-4o-mini). In production, 
-  a stronger judge model would produce more reliable evaluation scores.
-- Corpus coverage is limited to documents available in the public domain or 
-  personally sourced. owensvalleyhistory.com is not yet crawled.
+- The LLM judge uses the same model as generation (GPT-4o-mini). This introduces 
+  self-evaluation bias — the model tends to score its own outputs favorably. A 
+  stronger judge model would produce more reliable evaluation scores in production.
+- Corpus coverage of Paiute spiritual and religious practices is sparse. Queries 
+  on this topic may return insufficient context.
 
 ---
 
 ## Future Work
 
-- Web crawler for owensvalleyhistory.com primary source collection
 - Multimodal ingestion of historical maps and photographs via vision model 
   description pipeline
 - Evaluate Anthropic Claude as alternative generation model for nuanced 
   historical prose synthesis
-- Expanded corpus coverage beyond 1880–1915
+- Expanded owensvalleyhistory.com crawl coverage
 - Visualization of evaluation scores across query dimensions
 
 ---
