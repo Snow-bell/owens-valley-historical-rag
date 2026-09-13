@@ -29,8 +29,8 @@ TEST_QUERIES = [
     "What kind of train was the slim princess?",
     "How did the Owens Valley locals retaliate against the aqueduct in the years following the finished project?",
     "Describe how the white settlers and native paiutes got along in Owens Valley in the years after the aqueduct was built.",
-    "Describe the chemical makeup of Owens Lake before the aqueduct diverted its water."
-    "Was Owens Valley a desert before the aqueduct diverted the water?"
+    "Describe the chemical makeup of Owens Lake before the aqueduct diverted its water.",
+    "Was Owens Valley a desert before the aqueduct diverted the water?",
     "Who was William Mulholland and what was his role in the Los Angeles Aqueduct project?",
     "What was the Saint Francis Dam disaster and how did it affect public trust in the Los Angeles Department of Water and Power?",
     "Describe the Paiute people's relationship with water and land in Owens Valley before white settlement.",
