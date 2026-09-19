@@ -37,3 +37,6 @@ RERANK_TOP_N = TOP_K
 
 # Collection
 CHROMA_COLLECTION = "owens_valley"
+
+# Regression
+REGRESSION_THRESHOLD = 0.3
