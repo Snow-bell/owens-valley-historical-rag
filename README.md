@@ -1,25 +1,10 @@
 # Owens Valley Historical Research Assistant
 
-A domain-specific RAG (Retrieval-Augmented Generation) pipeline for querying 
-primary and secondary historical sources about the Owens Valley region of 
-California. Built to support historical fiction research with period-accurate 
-context retrieval and source bias transparency.
+A domain-specific RAG pipeline for querying 700+ primary and secondary historical sources about the Owens Valley region of California. Built to support historical fiction research with period-accurate context retrieval and source bias transparency.
 
----
+Answers are grounded strictly in retrieved source passages. This tool retrieves and synthesizes historical context; it does not generate prose.
 
-## Overview
-
-This tool allows a writer to ask natural language research questions and receive 
-grounded answers drawn exclusively from a curated corpus of historical documents. 
-Every answer is accompanied by source citations and bias warnings, enabling 
-critical evaluation of retrieved content before use in creative work. Answers 
-are grounded strictly in source passages; this tool retrieves and synthesizes 
-historical context, it does not generate prose.
-
-**Example queries:**
-- *What did Paiute families eat during winter months?*
-- *How did Los Angeles justify the acquisition of Owens Valley water rights?*
-- *Describe the landscape of the Owens Valley floor in early spring.*
+For full methodology, evaluation results, and design decisions see [REPORT.md](REPORT.md).
 
 ---
 
@@ -28,45 +13,33 @@ historical context, it does not generate prose.
 **Query pipeline**
 ```
 Query (CLI)
-    ↓
-retrieve.py   — embeds query, finds top-k similar chunks via ChromaDB
-    ↓
-generate.py   — sends retrieved chunks + query to GPT-4o-mini
-    ↓
-main.py       — handles CLI interaction, surfaces answer and bias warnings
+↓
+retrieve.py — embeds query, finds candidates via ChromaDB, reranks via Cohere
+↓
+generate.py — sends reranked chunks + query to GPT-4o-mini or Mistral 7B
+↓
+main.py — handles CLI interaction, surfaces answer and bias warnings
 ```
 
 **Evaluation pipeline**
 ```
-evaluate.py   — runs predefined test queries through full pipeline
-    ↓
-judge.py      — scores each answer on 4 dimensions via LLM-as-judge
-    ↓
-outputs/eval_results.csv
+evaluate.py — runs 50 test queries through the full pipeline
+↓
+judge.py — scores each answer on 4 dimensions via LLM-as-judge
+↓
+outputs/eval_results_<model>.csv
 ```
-
----
-
-## Corpus
-
-The corpus consists of 700+ documents spanning primary and secondary historical 
-sources curated for geographic relevance to the Owens Valley region. Sources 
-span three tiers: direct indigenous voices, period primary sources, and secondary 
-reference material. Each source is tagged with a bias classification and severity 
-level surfaced alongside every retrieval.
-
-Sources include indigenous ethnographies, period newspapers, government surveys, 
-local histories, and documents crawled from owensvalleyhistory.com.
-
-Full source registry with descriptions: [`src/corpus_registry.py`](src/corpus_registry.py)
 
 ---
 
 ## Setup
 
 ### Requirements
+
 - Python 3.10+
 - OpenAI API key
+- Cohere API key
+- Ollama (optional, for local Mistral 7B inference)
 
 ### Installation
 
@@ -82,14 +55,15 @@ pip install -r requirements.txt
 
 Create a `.env` file in the project root:
 ```
-OPENAI_API_KEY=your_key_here
+OPENAI_API_KEY=your_openai_key
+COHERE_API_KEY=your_cohere_key
 ```
 
 ### Add corpus documents
 
-Place your PDF corpus documents in `data/corpus/`, maintaining the subfolder 
-structure for `chronicling-america/` and `womens-club-biographies/`. To crawl 
-owensvalleyhistory.com and populate `data/corpus/owensvalleyhistory/`:
+Place PDF corpus documents in `data/corpus/`, maintaining subfolder structure for `chronicling-america/` and `womens-club-biographies/`.
+
+To crawl owensvalleyhistory.com:
 
 ```bash
 python -m src.crawl
@@ -99,14 +73,13 @@ python -m src.crawl
 
 ## Usage
 
-### First run — index the corpus
+### Index the corpus
 
 ```bash
 python main.py
 ```
 
-The corpus is indexed automatically on first run. To force reindexing after 
-adding new documents:
+Indexes automatically on first run. To force reindex:
 
 ```bash
 python main.py --reindex
@@ -114,93 +87,34 @@ python main.py --reindex
 
 ### Query the corpus
 
-Once indexed, the tool enters an interactive query loop:
+Once indexed the tool enters an interactive query loop:
 ```
 Research question: What did Paiute families eat during winter months?
 ```
 
-Every answer includes cited sources with bias warnings.
-
 ### Run evaluation
 
 ```bash
-python -m src.evaluate
+# OpenAI (default)
+python -m src.evaluate --model openai
+
+# Mistral 7B via Ollama
+python -m src.evaluate --model mistral
 ```
 
-Results saved to `outputs/eval_results.csv`.
+Results saved to `outputs/eval_results_<model>.csv`.
 
----
+### Compare models
 
-## Design Decisions
+```bash
+python -m src.compare
+```
 
-### Source bias tagging
-Historical sources on the Owens Valley water conflict represent fundamentally 
-opposed perspectives. LA newspapers framed water acquisition as civic progress 
-while indigenous voices described the same events as dispossession. Rather than 
-resolving these contradictions, the system surfaces them. Every retrieved chunk 
-carries its source's bias tag and severity level, and the generation prompt 
-instructs the model to flag conflicting perspectives rather than arbitrarily 
-adopting one.
+### Run regression check
 
-### Curated corpus over broad crawling
-Core corpus documents were selected and tiered manually rather than scraped 
-broadly. This prioritizes retrieval precision over recall. A chunk from a 
-relevant primary source outperforms ten chunks from tangentially related 
-material. Chapter-level selection was applied to multi-chapter references to 
-reduce noise from geographically irrelevant content. owensvalleyhistory.com 
-was crawled selectively, excluding the Mt. Whitney Pack Trains section as 
-outside the project's historical scope.
-
-### Source diversity filter
-Retrieval fetches three times the target chunk count then limits results to two 
-chunks per source before passing to generation. This prevents any single 
-document from dominating retrieval results, which is a particular concern given 
-the 700+ owensvalleyhistory pages in the corpus.
-
-### LLM-as-judge evaluation
-Answer quality is scored automatically on four dimensions: contextual alignment, 
-source faithfulness, specificity, and bias handling. A second GPT-4o-mini call 
-with temperature 0.0 for deterministic scoring removes subjective manual scoring 
-and enables systematic comparison across query types. The pipeline achieved 
-4.83/5 overall across 15 domain-specific test queries with a perfect 5.0 source 
-faithfulness score.
-
-### Local vector storage
-ChromaDB runs locally with no external dependencies. The corpus contains 
-sensitive historical material including indigenous primary sources. Keeping 
-embeddings and retrieval entirely local avoids sending that content to 
-third-party infrastructure beyond the generation API calls.
-
-### Temperature 0.2 for generation, 0.0 for judgment
-Generation uses a low but non-zero temperature to allow natural language 
-variation in answers while staying grounded. The judge uses temperature 0.0 
-because scoring should be deterministic.
-
----
-
-## Known Limitations
-
-- **Ghosts of the Sagebrush** is primarily a photo document so extracted text 
-  is fragmentary and retrieved chunks should be treated as partial context only.
-- OCR preprocessing is not implemented. All corpus documents must be 
-  text-selectable PDFs.
-- The LLM judge uses the same model as generation (GPT-4o-mini). This introduces 
-  self-evaluation bias — the model tends to score its own outputs favorably. A 
-  stronger judge model would produce more reliable evaluation scores in production.
-- Corpus coverage of Paiute spiritual and religious practices is sparse. Queries 
-  on this topic may return insufficient context.
-- Transliteration of Paiute language terms varies across corpus documents from different eras. Queries about specific Paiute terminology may surface variant spellings depending on which sources are retrieved.
-
----
-
-## Future Work
-
-- Multimodal ingestion of historical maps and photographs via vision model 
-  description pipeline
-- Evaluate Anthropic Claude as alternative generation model for nuanced 
-  historical prose synthesis
-- Expanded owensvalleyhistory.com crawl coverage
-- Visualization of evaluation scores across query dimensions
+```bash
+python -m src.regression --baseline eval_results_openai.csv --current eval_results_mistral.csv
+```
 
 ---
 
