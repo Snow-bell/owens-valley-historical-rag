@@ -28,7 +28,12 @@ CHUNK_OVERLAP = 100
 MAX_CHARS = 15000   
 
 # Retrieval
-TOP_K = 5               
+TOP_K = 5        
+
+# Cohere
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+RERANK_MODEL = "rerank-english-v3.0"
+RERANK_TOP_N = TOP_K       
 
 # Collection
 CHROMA_COLLECTION = "owens_valley"

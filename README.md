@@ -189,6 +189,7 @@ because scoring should be deterministic.
   stronger judge model would produce more reliable evaluation scores in production.
 - Corpus coverage of Paiute spiritual and religious practices is sparse. Queries 
   on this topic may return insufficient context.
+- Transliteration of Paiute language terms varies across corpus documents from different eras. Queries about specific Paiute terminology may surface variant spellings depending on which sources are retrieved.
 
 ---
 

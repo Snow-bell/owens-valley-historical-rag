@@ -1,3 +1,4 @@
+import cohere
 from typing import List, Dict
 from openai import OpenAI
 from src.config import (
@@ -6,14 +7,23 @@ from src.config import (
     TOP_K,
 )
 from src.embed import get_chroma_collection
+from src.rerank import rerank
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
+def embed_query(query: str) -> List[float]:
+    response = client.embeddings.create(
+        model=EMBEDDING_MODEL,
+        input=query,
+    )
+    return response.data[0].embedding
+
+
 def diversify(chunks: List[Dict], max_per_source: int = 2) -> List[Dict]:
     """
-    Limits chunks per source to prevent any single document
-    from dominating retrieval results.
+    Fallback diversity filter — limits chunks per source to prevent
+    any single document dominating when reranking is unavailable.
     """
     seen = {}
     result = []
@@ -26,22 +36,10 @@ def diversify(chunks: List[Dict], max_per_source: int = 2) -> List[Dict]:
     return result
 
 
-def embed_query(query: str) -> List[float]:
-    """
-    Embed a user query using the same model as the corpus.
-    """
-    response = client.embeddings.create(
-        model=EMBEDDING_MODEL,
-        input=query,
-    )
-    return response.data[0].embedding
-
-
 def retrieve(query: str, top_k: int = TOP_K) -> List[Dict]:
     collection = get_chroma_collection()
     query_embedding = embed_query(query)
 
-    # Fetch 3x top_k to ensure diversity after filtering
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=top_k * 3,
@@ -60,4 +58,8 @@ def retrieve(query: str, top_k: int = TOP_K) -> List[Dict]:
             "similarity": round(1 - distance, 4),
         })
 
-    return diversify(chunks, max_per_source=2)[:top_k]
+    try:
+        return rerank(query, chunks)
+    except Exception as e:
+        print(f"  [WARNING] Rerank failed, falling back to diversity filter: {e}")
+        return diversify(chunks)[:top_k]

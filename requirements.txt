@@ -8,3 +8,4 @@ pytest
 pytest-cov
 beautifulsoup4
 requests
+cohere
