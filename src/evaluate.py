@@ -1,5 +1,5 @@
 import csv
-import json
+import sys
 from pathlib import Path
 from typing import List, Dict
 from src.retrieve import retrieve
@@ -61,9 +61,9 @@ TEST_QUERIES = [
 ]
 
 ANSWER_PREVIEW_LENGTH = 1000
-CSV_PATH = OUTPUTS_DIR / "eval_results.csv"
 CSV_FIELDS = [
     "query",
+    "model",
     "contextual_alignment",
     "source_faithfulness",
     "specificity",
@@ -74,11 +74,12 @@ CSV_FIELDS = [
 ]
 
 
-def run_evaluation() -> List[Dict]:
-    """
-    Runs all test queries through the full RAG pipeline and scores
-    each answer using the LLM judge. Returns list of result dicts.
-    """
+def get_csv_path(model: str) -> Path:
+    safe = model.replace("/", "_").replace(":", "_")
+    return OUTPUTS_DIR / f"eval_results_{safe}.csv"
+
+
+def run_evaluation(model: str = "openai") -> List[Dict]:
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     results = []
 
@@ -87,7 +88,7 @@ def run_evaluation() -> List[Dict]:
 
         try:
             chunks = retrieve(query)
-            result = generate(query, chunks)
+            result = generate(query, chunks, model=model)
             scores = judge(query, result["answer"], chunks)
 
             sources_used = ", ".join(
@@ -98,6 +99,7 @@ def run_evaluation() -> List[Dict]:
 
             row = {
                 "query": query,
+                "model": model,
                 "contextual_alignment": scores.get("contextual_alignment"),
                 "source_faithfulness": scores.get("source_faithfulness"),
                 "specificity": scores.get("specificity"),
@@ -117,6 +119,7 @@ def run_evaluation() -> List[Dict]:
             print(f"  [ERROR] Query failed: {e}")
             results.append({
                 "query": query,
+                "model": model,
                 "contextual_alignment": None,
                 "source_faithfulness": None,
                 "specificity": None,
@@ -129,15 +132,16 @@ def run_evaluation() -> List[Dict]:
     return results
 
 
-def save_results(results: List[Dict]) -> None:
-    with open(CSV_PATH, "w", newline="", encoding="utf-8") as f:
+def save_results(results: List[Dict], model: str) -> None:
+    csv_path = get_csv_path(model)
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         writer.writerows(results)
-    print(f"\n  Results saved to {CSV_PATH}")
+    print(f"\n  Results saved to {csv_path}")
 
 
-def print_summary(results: List[Dict]) -> None:
+def print_summary(results: List[Dict], model: str) -> None:
     dimensions = [
         "contextual_alignment",
         "source_faithfulness",
@@ -146,7 +150,7 @@ def print_summary(results: List[Dict]) -> None:
     ]
 
     print("\n" + "=" * 50)
-    print("EVALUATION SUMMARY")
+    print(f"EVALUATION SUMMARY — {model.upper()}")
     print("=" * 50)
 
     dimension_averages = {}
@@ -172,12 +176,19 @@ def print_summary(results: List[Dict]) -> None:
 
 
 def main() -> None:
-    print("Starting evaluation pipeline...")
+    model = "openai"
+    for arg in sys.argv[1:]:
+        if arg.startswith("--model="):
+            model = arg.split("=", 1)[1]
+        elif arg == "--model" and sys.argv.index(arg) + 1 < len(sys.argv):
+            model = sys.argv[sys.argv.index(arg) + 1]
+
+    print(f"Starting evaluation pipeline — model: {model}")
     print(f"Queries to evaluate: {len(TEST_QUERIES)}\n")
 
-    results = run_evaluation()
-    save_results(results)
-    print_summary(results)
+    results = run_evaluation(model)
+    save_results(results, model)
+    print_summary(results, model)
 
 
 if __name__ == "__main__":

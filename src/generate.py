@@ -1,3 +1,4 @@
+import ollama as ollama_client
 from typing import List, Dict
 from openai import OpenAI
 from src.config import (
@@ -8,11 +9,11 @@ from src.config import (
     MAX_TOKENS,
 )
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 SYSTEM_PROMPT = """You are a historical research assistant specializing in the 
-Owens Valley region of California circa 1880-1915.
+Owens Valley region of California circa 1880-1930.
 
 Your role is to answer research questions using ONLY the source passages provided 
 to you. Do not draw on outside knowledge. If the provided passages do not contain 
@@ -79,15 +80,13 @@ def format_sources(chunks: List[Dict]) -> str:
     return "\n".join(sources)
 
 
-def generate(query: str, chunks: List[Dict]) -> Dict:
+def generate_openai(query: str, chunks: List[Dict]) -> str:
     context = format_context(chunks)
-
     user_message = (
         f"Research question: {query}\n\n"
         f"Source passages:\n\n{context}"
     )
-
-    response = client.chat.completions.create(
+    response = openai_client.chat.completions.create(
         model=GENERATION_MODEL,
         temperature=TEMPERATURE,
         top_p=TOP_P,
@@ -97,12 +96,36 @@ def generate(query: str, chunks: List[Dict]) -> Dict:
             {"role": "user", "content": user_message},
         ],
     )
+    return response.choices[0].message.content.strip()
 
-    answer = response.choices[0].message.content.strip()
+
+def generate_ollama(query: str, chunks: List[Dict], model: str) -> str:
+    context = format_context(chunks)
+    user_message = (
+        f"Research question: {query}\n\n"
+        f"Source passages:\n\n{context}"
+    )
+    response = ollama_client.chat(
+        model=model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
+    )
+    return response.message.content.strip()
+
+
+def generate(query: str, chunks: List[Dict], model: str = "openai") -> Dict:
+    if model == "openai":
+        answer = generate_openai(query, chunks)
+    else:
+        answer = generate_ollama(query, chunks, model)
+
     sources = format_sources(chunks)
 
     return {
         "answer": answer,
         "sources": sources,
         "chunks": chunks,
+        "model": model,
     }
