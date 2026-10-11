@@ -2,15 +2,30 @@ import time
 import requests
 from bs4 import BeautifulSoup
 from pathlib import Path
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, unquote
 from src.config import CORPUS_DIR
 
 BASE_URL = "http://www.owensvalleyhistory.com"
 OUTPUT_DIR = CORPUS_DIR / "owensvalleyhistory"
 
-SKIP_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".svg", ".ico"}
+SKIP_EXTENSIONS = {
+    # Images
+    ".jpg", ".jpeg", ".png", ".gif", ".svg", ".ico", ".bmp", ".tif", ".tiff",
+    # Video and audio
+    ".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mpg", ".mpeg", ".flv", ".webm",
+    ".mp3", ".wav", ".m4a",
+    # Maps, spreadsheets, documents, archives
+    ".kmz", ".kml", ".xls", ".xlsx", ".csv", ".doc", ".docx", ".ppt", ".pptx",
+    ".zip", ".rar", ".7z",
+}
 PDF_EXTENSION = ".pdf"
+HTML_CONTENT_TYPES = ("text/html", "text/plain")
 RATE_LIMIT = 1.5  # seconds between requests
+
+# Site copies of documents already in the curated corpus with their own registry entry
+CURATED_DUPLICATE_PATHS = {
+    "/stories/ethnography of owens valley paiute.pdf",
+}
 
 
 def is_internal(url: str) -> bool:
@@ -62,11 +77,24 @@ def is_pack_trains_url(url: str) -> bool:
     return any(segment in path for segment in PACK_TRAIN_PATHS)
 
 
+def is_curated_duplicate(url: str) -> bool:
+    path = unquote(urlparse(url).path).lower()
+    return path in CURATED_DUPLICATE_PATHS
+
+
 def fetch(url: str) -> str | None:
     # Returns None on failure rather than raising — caller handles missing pages
     try:
-        response = requests.get(url, timeout=10)
+        # Stream so non-HTML bodies (e.g. videos with unexpected extensions) are never downloaded
+        response = requests.get(url, timeout=10, stream=True)
         response.raise_for_status()
+
+        content_type = response.headers.get("Content-Type", "").lower()
+        if content_type and not content_type.startswith(HTML_CONTENT_TYPES):
+            print(f"  [SKIP] Not a text page ({content_type}): {url}")
+            response.close()
+            return None
+
         return response.text
     except Exception as e:
         print(f"  [ERROR] Failed to fetch {url}: {e}")
@@ -201,6 +229,8 @@ def crawl() -> None:
         if url in visited:
             continue
         if not is_internal(url):
+            continue
+        if is_curated_duplicate(url):
             continue
 
         ext = get_extension(url)
