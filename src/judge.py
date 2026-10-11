@@ -3,7 +3,7 @@ from typing import Dict
 from openai import OpenAI
 from src.config import (
     OPENAI_API_KEY,
-    GENERATION_MODEL,
+    JUDGE_MODEL,
     MAX_TOKENS,
 )
 
@@ -71,7 +71,7 @@ def judge(query: str, answer: str, chunks: list) -> Dict:
     )
 
     response = client.chat.completions.create(
-        model=GENERATION_MODEL,
+        model=JUDGE_MODEL,
         temperature=0.0,
         max_tokens=300,
         messages=[

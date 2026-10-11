@@ -1,44 +1,23 @@
-import csv
 from pathlib import Path
-from typing import Dict, List
 from src.config import OUTPUTS_DIR, REGRESSION_THRESHOLD
-
-DIMENSIONS = [
-    "contextual_alignment",
-    "source_faithfulness",
-    "specificity",
-    "bias_handling",
-]
-
-
-def load_results(csv_path: Path) -> List[Dict]:
-    if not csv_path.exists():
-        print(f"  [ERROR] File not found: {csv_path}")
-        return []
-    with open(csv_path, encoding="utf-8") as f:
-        return list(csv.DictReader(f))
-
-
-def average(results: List[Dict], dimension: str) -> float:
-    scores = [
-        float(r[dimension])
-        for r in results
-        if r.get(dimension) and r[dimension] not in ("", "None")
-    ]
-    return round(sum(scores) / len(scores), 2) if scores else 0.0
+from src.results import DIMENSIONS, load_results, average, same_judge
 
 
 def run_regression(baseline_path: Path, current_path: Path) -> bool:
     """
     Compares current eval results against a baseline.
     Flags any dimension that dropped more than REGRESSION_THRESHOLD.
-    Returns True if all checks pass, False if regressions detected.
+    Returns True if all checks pass, False if regressions are detected
+    or the two runs were scored by different judges.
     """
     baseline = load_results(baseline_path)
     current = load_results(current_path)
 
     if not baseline or not current:
         print("Both baseline and current results are required.")
+        return False
+
+    if not same_judge(baseline, current):
         return False
 
     print("\n" + "=" * 60)

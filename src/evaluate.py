@@ -1,11 +1,13 @@
 import csv
+import json
 import sys
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 from src.retrieve import retrieve
 from src.generate import generate
 from src.judge import judge
-from src.config import OUTPUTS_DIR
+from src.config import OUTPUTS_DIR, JUDGE_MODEL
+from src.results import DIMENSIONS
 
 TEST_QUERIES = [
     "What did the Owens Valley Paiute families diet consist of during the winter months?",
@@ -64,6 +66,7 @@ ANSWER_PREVIEW_LENGTH = 1000
 CSV_FIELDS = [
     "query",
     "model",
+    "judge_model",
     "contextual_alignment",
     "source_faithfulness",
     "specificity",
@@ -74,66 +77,137 @@ CSV_FIELDS = [
 ]
 
 
-def get_csv_path(model: str) -> Path:
-    safe = model.replace("/", "_").replace(":", "_")
-    return OUTPUTS_DIR / f"eval_results_{safe}.csv"
+def safe_name(name: str) -> str:
+    return name.replace("/", "_").replace(":", "_")
+
+
+def get_csv_path(model: str, judge_model: Optional[str] = None) -> Path:
+    # Re-scored runs get the judge in the filename so the original CSV is kept
+    if judge_model:
+        return OUTPUTS_DIR / f"eval_results_{safe_name(model)}__judge_{safe_name(judge_model)}.csv"
+    return OUTPUTS_DIR / f"eval_results_{safe_name(model)}.csv"
+
+
+def get_answers_path(model: str) -> Path:
+    return OUTPUTS_DIR / f"eval_answers_{safe_name(model)}.jsonl"
+
+
+def build_row(query: str, model: str, answer: str, chunks: List[Dict], scores: Dict) -> Dict:
+    sources_used = ", ".join(
+        set(c["metadata"]["source"] for c in chunks)
+    )
+
+    return {
+        "query": query,
+        "model": model,
+        "judge_model": JUDGE_MODEL,
+        "contextual_alignment": scores.get("contextual_alignment"),
+        "source_faithfulness": scores.get("source_faithfulness"),
+        "specificity": scores.get("specificity"),
+        "bias_handling": scores.get("bias_handling"),
+        "reasoning": scores.get("reasoning", ""),
+        "sources_used": sources_used,
+        "answer_preview": answer[:ANSWER_PREVIEW_LENGTH].replace("\n", " "),
+    }
+
+
+def build_error_row(query: str, model: str, error: str) -> Dict:
+    return {
+        "query": query,
+        "model": model,
+        "judge_model": JUDGE_MODEL,
+        "contextual_alignment": None,
+        "source_faithfulness": None,
+        "specificity": None,
+        "bias_handling": None,
+        "reasoning": error,
+        "sources_used": "",
+        "answer_preview": "",
+    }
+
+
+def print_scores(row: Dict) -> None:
+    print(f"  Scores — alignment: {row['contextual_alignment']} | "
+          f"faithfulness: {row['source_faithfulness']} | "
+          f"specificity: {row['specificity']} | "
+          f"bias: {row['bias_handling']}")
 
 
 def run_evaluation(model: str = "openai") -> List[Dict]:
+    """
+    Runs every test query through retrieve, generate, and judge.
+    Full answers and retrieved chunks are written to a JSONL file as each
+    query finishes, so a run can be re-scored later with a different judge.
+    """
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    answers_path = get_answers_path(model)
     results = []
 
-    for i, query in enumerate(TEST_QUERIES):
-        print(f"\n[{i + 1}/{len(TEST_QUERIES)}] {query}")
+    with open(answers_path, "w", encoding="utf-8") as answers_file:
+        for i, query in enumerate(TEST_QUERIES):
+            print(f"\n[{i + 1}/{len(TEST_QUERIES)}] {query}")
+            record = {"query": query, "model": model}
+
+            try:
+                chunks = retrieve(query)
+                result = generate(query, chunks, model=model)
+                record.update({"answer": result["answer"], "chunks": chunks})
+
+                scores = judge(query, result["answer"], chunks)
+                row = build_row(query, model, result["answer"], chunks, scores)
+                results.append(row)
+                print_scores(row)
+
+            except Exception as e:
+                print(f"  [ERROR] Query failed: {e}")
+                record["error"] = str(e)
+                results.append(build_error_row(query, model, f"Pipeline error: {e}"))
+
+            answers_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+            answers_file.flush()
+
+    print(f"\n  Answers saved to {answers_path}")
+    return results
+
+
+def load_answers(answers_path: Path) -> List[Dict]:
+    with open(answers_path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+def rejudge(answers_path: Path) -> List[Dict]:
+    """
+    Re-scores saved answers with the current JUDGE_MODEL, without
+    retrieving or generating again.
+    """
+    records = load_answers(answers_path)
+    results = []
+
+    for i, record in enumerate(records):
+        query = record["query"]
+        model = record["model"]
+        print(f"\n[{i + 1}/{len(records)}] {query}")
+
+        if "answer" not in record:
+            print("  [SKIP] No saved answer for this query.")
+            results.append(build_error_row(
+                query, model, f"Pipeline error: {record.get('error', 'no saved answer')}"
+            ))
+            continue
 
         try:
-            chunks = retrieve(query)
-            result = generate(query, chunks, model=model)
-            scores = judge(query, result["answer"], chunks)
-
-            sources_used = ", ".join(
-                set(c["metadata"]["source"] for c in chunks)
-            )
-
-            answer_preview = result["answer"][:ANSWER_PREVIEW_LENGTH].replace("\n", " ")
-
-            row = {
-                "query": query,
-                "model": model,
-                "contextual_alignment": scores.get("contextual_alignment"),
-                "source_faithfulness": scores.get("source_faithfulness"),
-                "specificity": scores.get("specificity"),
-                "bias_handling": scores.get("bias_handling"),
-                "reasoning": scores.get("reasoning", ""),
-                "sources_used": sources_used,
-                "answer_preview": answer_preview,
-            }
-
+            scores = judge(query, record["answer"], record["chunks"])
+            row = build_row(query, model, record["answer"], record["chunks"], scores)
             results.append(row)
-            print(f"  Scores — alignment: {row['contextual_alignment']} | "
-                  f"faithfulness: {row['source_faithfulness']} | "
-                  f"specificity: {row['specificity']} | "
-                  f"bias: {row['bias_handling']}")
-
+            print_scores(row)
         except Exception as e:
-            print(f"  [ERROR] Query failed: {e}")
-            results.append({
-                "query": query,
-                "model": model,
-                "contextual_alignment": None,
-                "source_faithfulness": None,
-                "specificity": None,
-                "bias_handling": None,
-                "reasoning": f"Pipeline error: {e}",
-                "sources_used": "",
-                "answer_preview": "",
-            })
+            print(f"  [ERROR] Judge failed: {e}")
+            results.append(build_error_row(query, model, f"Judge error: {e}"))
 
     return results
 
 
-def save_results(results: List[Dict], model: str) -> None:
-    csv_path = get_csv_path(model)
+def save_results(results: List[Dict], csv_path: Path) -> None:
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
@@ -142,19 +216,13 @@ def save_results(results: List[Dict], model: str) -> None:
 
 
 def print_summary(results: List[Dict], model: str) -> None:
-    dimensions = [
-        "contextual_alignment",
-        "source_faithfulness",
-        "specificity",
-        "bias_handling",
-    ]
-
     print("\n" + "=" * 50)
     print(f"EVALUATION SUMMARY — {model.upper()}")
+    print(f"Judge: {JUDGE_MODEL}")
     print("=" * 50)
 
     dimension_averages = {}
-    for dim in dimensions:
+    for dim in DIMENSIONS:
         scores = [r[dim] for r in results if r[dim] is not None]
         if scores:
             avg = round(sum(scores) / len(scores), 2)
@@ -177,17 +245,40 @@ def print_summary(results: List[Dict], model: str) -> None:
 
 def main() -> None:
     model = "openai"
-    for arg in sys.argv[1:]:
+    rejudge_name = None
+    args = sys.argv[1:]
+
+    for i, arg in enumerate(args):
         if arg.startswith("--model="):
             model = arg.split("=", 1)[1]
-        elif arg == "--model" and sys.argv.index(arg) + 1 < len(sys.argv):
-            model = sys.argv[sys.argv.index(arg) + 1]
+        elif arg == "--model" and i + 1 < len(args):
+            model = args[i + 1]
+        elif arg.startswith("--rejudge="):
+            rejudge_name = arg.split("=", 1)[1]
+        elif arg == "--rejudge" and i + 1 < len(args):
+            rejudge_name = args[i + 1]
+
+    if rejudge_name:
+        answers_path = OUTPUTS_DIR / rejudge_name
+        if not answers_path.exists():
+            print(f"  [ERROR] File not found: {answers_path}")
+            sys.exit(1)
+
+        print(f"Re-scoring saved answers — {answers_path.name}")
+        print(f"Judge: {JUDGE_MODEL}\n")
+
+        results = rejudge(answers_path)
+        model = results[0]["model"] if results else model
+        save_results(results, get_csv_path(model, JUDGE_MODEL))
+        print_summary(results, model)
+        return
 
     print(f"Starting evaluation pipeline — model: {model}")
+    print(f"Judge: {JUDGE_MODEL}")
     print(f"Queries to evaluate: {len(TEST_QUERIES)}\n")
 
     results = run_evaluation(model)
-    save_results(results, model)
+    save_results(results, get_csv_path(model))
     print_summary(results, model)
 
 

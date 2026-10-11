@@ -102,7 +102,17 @@ python -m src.evaluate --model openai
 python -m src.evaluate --model mistral
 ```
 
-Results saved to `outputs/eval_results_<model>.csv`.
+Results saved to `outputs/eval_results_<model>.csv`. Full answers and retrieved chunks are saved to `outputs/eval_answers_<model>.jsonl`.
+
+### Re-score saved answers
+
+Re-runs only the judge (set `JUDGE_MODEL` in `src/config.py`) on a saved run, without retrieving or generating again:
+
+```bash
+python -m src.evaluate --rejudge eval_answers_openai.jsonl
+```
+
+Results saved to `outputs/eval_results_<model>__judge_<judge>.csv`. The regression check refuses to compare runs scored by different judges.
 
 ### Compare models
 

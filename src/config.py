@@ -20,6 +20,9 @@ TEMPERATURE = 0.2
 TOP_P = 0.9
 MAX_TOKENS = 1000
 
+# Judge
+JUDGE_MODEL = "gpt-4o-mini"
+
 # Chunking
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100

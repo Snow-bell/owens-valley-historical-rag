@@ -1,30 +1,5 @@
-import csv
-from pathlib import Path
 from src.config import OUTPUTS_DIR
-
-DIMENSIONS = [
-    "contextual_alignment",
-    "source_faithfulness",
-    "specificity",
-    "bias_handling",
-]
-
-
-def load_results(csv_path: Path) -> list:
-    if not csv_path.exists():
-        print(f"  [ERROR] File not found: {csv_path}")
-        return []
-    with open(csv_path, encoding="utf-8") as f:
-        return list(csv.DictReader(f))
-
-
-def average(results: list, dimension: str) -> float:
-    scores = [
-        float(r[dimension])
-        for r in results
-        if r.get(dimension) and r[dimension] not in ("", "None")
-    ]
-    return round(sum(scores) / len(scores), 2) if scores else 0.0
+from src.results import DIMENSIONS, load_results, average, same_judge
 
 
 def compare() -> None:
@@ -36,6 +11,9 @@ def compare() -> None:
 
     if not openai_results or not mistral_results:
         print("Both eval_results_openai.csv and eval_results_mistral.csv are required.")
+        return
+
+    if not same_judge(openai_results, mistral_results):
         return
 
     print("\n" + "=" * 60)
