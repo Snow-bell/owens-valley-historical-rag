@@ -29,6 +29,13 @@ class TestEmbedQuery:
 
 class TestRetrieve:
 
+    @pytest.fixture(autouse=True)
+    def mock_rerank(self):
+        # Keep tests off the Cohere API; pass candidates through in order
+        with patch("src.retrieve.rerank") as mock:
+            mock.side_effect = lambda query, chunks, top_n: chunks[:top_n]
+            yield mock
+
     @patch("src.retrieve.get_chroma_collection")
     @patch("src.retrieve.embed_query")
     def test_returns_list_of_chunks(self, mock_embed, mock_collection):
@@ -131,3 +138,61 @@ class TestRetrieve:
 
         chunks = retrieve("test query", top_k=3)
         assert len(chunks) == 3
+
+    @patch("src.retrieve.get_chroma_collection")
+    @patch("src.retrieve.embed_query")
+    def test_top_k_passed_to_rerank(
+        self, mock_embed, mock_collection, mock_rerank
+    ):
+        mock_embed.return_value = [0.1, 0.2, 0.3]
+
+        mock_col = MagicMock()
+        mock_col.query.return_value = {
+            "documents": [["text one", "text two", "text three"]],
+            "metadatas": [[
+                {"source": "a.pdf", "source_path": "a.pdf", "tier": 1,
+                 "bias_tag": "none", "bias_level": "none",
+                 "description": "a", "chunk_index": 0},
+                {"source": "b.pdf", "source_path": "b.pdf", "tier": 1,
+                 "bias_tag": "none", "bias_level": "none",
+                 "description": "b", "chunk_index": 0},
+                {"source": "c.pdf", "source_path": "c.pdf", "tier": 1,
+                 "bias_tag": "none", "bias_level": "none",
+                 "description": "c", "chunk_index": 0},
+            ]],
+            "distances": [[0.1, 0.2, 0.3]],
+        }
+        mock_collection.return_value = mock_col
+
+        chunks = retrieve("test query", top_k=2)
+        assert len(chunks) == 2
+        assert mock_rerank.call_args.kwargs["top_n"] == 2
+
+    @patch("src.retrieve.get_chroma_collection")
+    @patch("src.retrieve.embed_query")
+    def test_rerank_failure_falls_back_to_top_k(
+        self, mock_embed, mock_collection, mock_rerank
+    ):
+        mock_embed.return_value = [0.1, 0.2, 0.3]
+        mock_rerank.side_effect = Exception("Cohere unavailable")
+
+        mock_col = MagicMock()
+        mock_col.query.return_value = {
+            "documents": [["text one", "text two", "text three"]],
+            "metadatas": [[
+                {"source": "a.pdf", "source_path": "a.pdf", "tier": 1,
+                 "bias_tag": "none", "bias_level": "none",
+                 "description": "a", "chunk_index": 0},
+                {"source": "b.pdf", "source_path": "b.pdf", "tier": 1,
+                 "bias_tag": "none", "bias_level": "none",
+                 "description": "b", "chunk_index": 0},
+                {"source": "c.pdf", "source_path": "c.pdf", "tier": 1,
+                 "bias_tag": "none", "bias_level": "none",
+                 "description": "c", "chunk_index": 0},
+            ]],
+            "distances": [[0.1, 0.2, 0.3]],
+        }
+        mock_collection.return_value = mock_col
+
+        chunks = retrieve("test query", top_k=2)
+        assert len(chunks) == 2

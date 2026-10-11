@@ -58,7 +58,7 @@ def retrieve(query: str, top_k: int = TOP_K) -> List[Dict]:
         })
 
     try:
-        return rerank(query, chunks)
+        return rerank(query, chunks, top_n=top_k)
     except Exception as e:
         print(f"  [WARNING] Rerank failed, falling back to diversity filter: {e}")
         return diversify(chunks)[:top_k]

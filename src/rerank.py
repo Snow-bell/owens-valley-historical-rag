@@ -5,7 +5,7 @@ from src.config import COHERE_API_KEY, RERANK_MODEL, RERANK_TOP_N
 client = cohere.Client(api_key=COHERE_API_KEY)
 
 
-def rerank(query: str, chunks: List[Dict]) -> List[Dict]:
+def rerank(query: str, chunks: List[Dict], top_n: int = RERANK_TOP_N) -> List[Dict]:
     """
     Reranks chunks by relevance to the query using Cohere's cross-encoder.
     """
@@ -18,7 +18,7 @@ def rerank(query: str, chunks: List[Dict]) -> List[Dict]:
         model=RERANK_MODEL,
         query=query,
         documents=documents,
-        top_n=RERANK_TOP_N,
+        top_n=top_n,
     )
 
     reranked = []
