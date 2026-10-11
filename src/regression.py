@@ -1,7 +1,7 @@
 import csv
 from pathlib import Path
 from typing import Dict, List
-from src.config import OUTPUTS_DIR
+from src.config import OUTPUTS_DIR, REGRESSION_THRESHOLD
 
 DIMENSIONS = [
     "contextual_alignment",
@@ -9,8 +9,6 @@ DIMENSIONS = [
     "specificity",
     "bias_handling",
 ]
-
-REGRESSION_THRESHOLD = 0.3
 
 
 def load_results(csv_path: Path) -> List[Dict]:

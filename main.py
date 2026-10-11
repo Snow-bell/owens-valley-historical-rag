@@ -38,7 +38,7 @@ def query_loop() -> None:
     """
     console.print(Panel(
         "[bold]Owens Valley Historical Research Assistant[/bold]\n"
-        "Ask research questions about the Owens Valley region circa 1880–1915.\n"
+        "Ask research questions about the Owens Valley region circa 1880–1930.\n"
         "Type [bold]exit[/bold] or [bold]quit[/bold] to stop.",
         style="cyan"
     ))

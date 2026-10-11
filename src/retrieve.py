@@ -1,4 +1,3 @@
-import cohere
 from typing import List, Dict
 from openai import OpenAI
 from src.config import (

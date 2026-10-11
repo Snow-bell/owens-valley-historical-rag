@@ -53,7 +53,7 @@ Return this exact structure:
 
 def judge(query: str, answer: str, chunks: list) -> Dict:
     """
-    Scores answer quality on three dimensions using an LLM judge.
+    Scores answer quality on four dimensions using an LLM judge.
     Returns scores and reasoning. On parse failure returns error dict
     rather than crashing the evaluation pipeline.
     """

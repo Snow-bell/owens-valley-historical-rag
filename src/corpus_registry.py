@@ -2,7 +2,7 @@
 # Each entry defines the bias context for a source document.
 #
 # bias_tag options:
-#   none | indigenous_perspective | settler_bias | institutional_bias | neutral
+#   primary_indigenous | academic | settler_bias | institutional_bias | none
 #
 # bias_level options:
 #   none | mild | moderate | severe
