@@ -1,9 +1,8 @@
 import pymupdf as fitz
 from pathlib import Path
 from typing import List, Dict
-from src.config import CORPUS_DIR
-from src.corpus_registry import CORPUS_REGISTRY
 from src.config import CORPUS_DIR, MAX_CHARS
+from src.corpus_registry import CORPUS_REGISTRY
 
 
 def get_metadata(filepath: Path) -> Dict:
@@ -85,7 +84,6 @@ def load_corpus() -> List[Dict]:
                 continue
             
             # Cap document size to prevent runaway chunking
-            MAX_CHARS = 15000
             if len(text) > MAX_CHARS:
                 text = text[:MAX_CHARS]
 

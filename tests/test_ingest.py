@@ -56,23 +56,50 @@ class TestGetMetadata:
 
 class TestLoadCorpus:
 
-    @patch("src.ingest.fitz.open")
-    @patch("src.ingest.CORPUS_DIR")
-    def test_load_corpus_returns_list(self, mock_corpus_dir, mock_fitz):
-        mock_pdf = MagicMock()
+    @pytest.fixture
+    def corpus_dir(self, tmp_path):
+        (tmp_path / "story-of-inyo.pdf").write_bytes(b"%PDF placeholder")
+        (tmp_path / "owensvalleyhistory").mkdir()
+        (tmp_path / "owensvalleyhistory" / "bishop.txt").write_text(
+            "Bishop Creek mill, 1890.", encoding="utf-8"
+        )
+        (tmp_path / "owensvalleyhistory" / "empty.txt").write_text("", encoding="utf-8")
+        (tmp_path / "notes.md").write_text("Not a corpus file.", encoding="utf-8")
+        with patch("src.ingest.CORPUS_DIR", tmp_path):
+            yield tmp_path
+
+    @pytest.fixture
+    def mock_fitz(self):
         mock_page = MagicMock()
         mock_page.get_text.return_value = "Sample extracted text."
+        mock_pdf = MagicMock()
         mock_pdf.__iter__ = MagicMock(return_value=iter([mock_page]))
-        mock_pdf.close = MagicMock()
-        mock_fitz.return_value = mock_pdf
+        with patch("src.ingest.fitz.open", return_value=mock_pdf) as mock_open:
+            yield mock_open
 
-        mock_path = MagicMock()
-        mock_path.name = "story-of-inyo.pdf"
-        mock_path.relative_to.return_value = Path("story-of-inyo.pdf")
-        mock_corpus_dir.rglob.return_value = [mock_path]
-
+    def test_load_corpus_loads_pdf_and_txt(self, corpus_dir, mock_fitz):
         documents = load_corpus()
-        assert isinstance(documents, list)
+        by_path = {d["metadata"]["source_path"]: d for d in documents}
+
+        # Empty files and non-corpus extensions are skipped
+        assert set(by_path) == {
+            "story-of-inyo.pdf",
+            str(Path("owensvalleyhistory") / "bishop.txt"),
+        }
+
+        inyo = by_path["story-of-inyo.pdf"]
+        assert inyo["text"] == "Sample extracted text."
+        assert inyo["metadata"]["bias_tag"] == "settler_bias"
+
+        bishop = by_path[str(Path("owensvalleyhistory") / "bishop.txt")]
+        assert bishop["text"] == "Bishop Creek mill, 1890."
+        assert bishop["metadata"]["source"] == "bishop.txt"
+        assert bishop["metadata"]["tier"] == 2
+
+    def test_load_corpus_caps_document_length(self, corpus_dir, mock_fitz):
+        with patch("src.ingest.MAX_CHARS", 6):
+            documents = load_corpus()
+        assert all(len(d["text"]) <= 6 for d in documents)
 
     @patch("src.ingest.CORPUS_DIR")
     def test_empty_corpus_raises_error(self, mock_corpus_dir):
