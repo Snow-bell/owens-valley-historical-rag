@@ -62,7 +62,7 @@ Generation uses a low but non-zero temperature to allow natural language variati
 
 ## Evaluation Methodology
 
-Answer quality is scored automatically on four dimensions using a second LLM call with temperature 0.0:
+Answer quality is scored automatically on four dimensions by a separate judge model at temperature 0.0. The judge is Gemma 3 12B, run locally through Ollama on the GPU, so it is a different model from the GPT-4o-mini generator. Earlier runs used GPT-4o-mini as the judge.
 
 | Dimension | What it measures |
 |-----------|-----------------|
@@ -71,7 +71,9 @@ Answer quality is scored automatically on four dimensions using a second LLM cal
 | Specificity | Whether details are concrete and particular vs. generic |
 | Bias handling | Whether the answer surfaces or accounts for source bias |
 
-Each dimension is scored 1-5. The judge receives the query, the full answer, and the retrieved chunks with bias metadata embedded in each source header.
+Each dimension is scored 1-5. The judge receives the query, the full answer, and the retrieved chunks with bias metadata embedded in each source header. Ollama constrains the reply to a JSON schema; scores must be whole numbers from 1 to 5, and an invalid reply is retried once.
+
+Every results row records the judge as model plus prompt version (for example `gemma3:12b@v2`). Scores are only comparable within one judge model and prompt version, and the regression check refuses to compare runs that differ. Full answers are saved with each run, so a run can be rescored by a new judge without generating again.
 
 The test suite consists of 50 domain-specific queries covering Paiute life, water rights history, landscape and geology, settler communities, and railroad history. Queries were designed to stress different corpus tiers and surface known coverage gaps.
 
@@ -83,13 +85,38 @@ The test suite consists of 50 domain-specific queries covering Paiute life, wate
 
 ## Results Over Time
 
-| Run | Model | Retrieval | Overall | Notes |
-|-----|-------|-----------|---------|-------|
-| Initial | GPT-4o-mini | Cosine similarity | 4.59 / 5 | 50 queries, pre-rerank |
-| Post-rerank | GPT-4o-mini | Cohere rerank | 4.82 / 5 | Same 50 queries |
-| Model comparison | Mistral 7B | Cohere rerank | 3.50 / 5 | Local inference via Ollama |
+| Run | Model | Retrieval | Judge | Overall | Notes |
+|-----|-------|-----------|-------|---------|-------|
+| Initial | GPT-4o-mini | Cosine similarity | GPT-4o-mini | 4.59 / 5 | 50 queries, pre-rerank |
+| Post-rerank | GPT-4o-mini | Cohere rerank | GPT-4o-mini | 4.82 / 5 | Same 50 queries |
+| Model comparison | Mistral 7B | Cohere rerank | GPT-4o-mini | 3.50 / 5 | Local inference via Ollama |
+| Corpus cleanup | GPT-4o-mini | Cohere rerank | GPT-4o-mini | 4.75 / 5 | Seven junk crawl files removed; new answers |
+| Judge switch | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v1 | 4.59 / 5 | Same answers as corpus cleanup, rescored |
+| Judge prompt v2 | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v2 | 4.64 / 5 | Same answers, rescored; current baseline |
+
+Scores from different judges are not comparable. The last three rows score the same 50 answers, so their differences come from the judge alone.
+
+### Judge comparison
+
+The same 50 answers (corpus cleanup run) scored by three judges. Counts are answers per score; no judge gave any answer a 1 or 2.
+
+| Dimension | GPT-4o-mini judge | Gemma, prompt v1 | Gemma, prompt v2 |
+|-----------|-------------------|------------------|------------------|
+| Contextual alignment | 4.98 (49 × 5) | 5.00 (50 × 5) | 4.98 (49 × 5) |
+| Source faithfulness | 4.90 (45 × 5) | 4.98 (49 × 5) | 4.98 (49 × 5) |
+| Specificity | 4.90 (45 × 5) | 4.56 (28 × 5) | 4.78 (39 × 5) |
+| Bias handling | 4.22 (20 × 5, 9 × 3) | 3.82 (5 × 5, 14 × 3) | 3.80 (5 × 5, 15 × 3) |
+| Overall | 4.75 | 4.59 | 4.64 |
+
+Gemma is stricter than GPT-4o-mini on specificity and bias handling, the two dimensions that still separate answers. Prompt v2 describes every score from 1 to 5 instead of only 1 and 5, and adds a rule that answers saying the passages don't cover a question are not penalized. It did not break the ceiling on alignment and faithfulness, and it raised specificity on 11 answers. The likely reason is that GPT-4o-mini's answers are consistently on-topic and sourced, and a 1-5 scale can't separate good answers from better ones. Those two dimensions still catch a collapse, as the Mistral comparison shows.
+
+The Gemma judge is deterministic: a repeat v2 run produced identical scores and reasoning for all 50 answers. Bias handling still changed on 12 of 50 answers between v1 and v2, even though its wording was identical, while its average moved only from 3.82 to 3.80. Rewording one part of the prompt shifts scores on the others, so every prompt version needs its own baseline, which the versioned judge label enforces.
+
+Run-to-run variation in a full evaluation comes from generation, not judging: answers are regenerated at temperature 0.2 on each run. The 0.3 regression threshold has to absorb that variation, which has not yet been measured.
 
 ### Model comparison findings
+
+Scored by the GPT-4o-mini judge before the corpus cleanup.
 
 | Dimension | GPT-4o-mini | Mistral 7B | Delta |
 |-----------|-------------|------------|-------|
@@ -107,7 +134,10 @@ Query 47 — "Describe the living conditions at the Fort Tejon reservation durin
 
 ## Known Limitations
 
-- The LLM judge uses the same model as generation (GPT-4o-mini). This introduces self-evaluation bias — the model tends to score its own outputs favorably. A stronger judge model would produce more reliable scores in production.
+- Judge scores are coarse. Alignment and faithfulness score 5 on 49 of 50 GPT-4o-mini answers, so they detect large regressions but not small improvements. Comparing two retrieval setups side by side (pairwise judging) would be more sensitive.
+- Judge scores are sensitive to prompt wording: changing the anchors for three dimensions moved bias handling scores on 12 of 50 answers. Scores from different prompt versions are not comparable.
+- The variation in scores between two full evaluation runs with no changes, which comes from generation at temperature 0.2, has not been measured, so the 0.3 regression threshold is not yet calibrated.
+- Results before the judge switch, including the Mistral comparison, were scored by GPT-4o-mini judging its own answers, which tends to favor them. They are not comparable with Gemma-judged results.
 - Corpus coverage of Paiute spiritual and religious practices is sparse. Queries on this topic return insufficient context.
 - Transliteration of Paiute language terms varies across corpus documents from different eras. Queries about specific terminology may surface variant spellings depending on which sources are retrieved.
 - Ghosts of the Sagebrush is primarily a photo document. Extracted text is fragmentary and retrieved chunks should be treated as partial context only.
@@ -120,7 +150,8 @@ Query 47 — "Describe the living conditions at the Fort Tejon reservation durin
 
 - Multimodal ingestion of historical maps and photographs via vision model description pipeline
 - Evaluate Anthropic Claude as an alternative generation model for nuanced historical prose synthesis
-- Stronger judge model (GPT-4o) to reduce self-evaluation bias
+- Pairwise judging to compare retrieval and chunking changes more sensitively than 1-5 scores
+- Rerun the Mistral 7B comparison under the Gemma judge (its answers predate saved answer files, so they must be generated again)
 - Expanded owensvalleyhistory.com crawl coverage
 - Visualization of evaluation scores across query dimensions and runs
 - ROCm configuration for AMD GPU acceleration of local inference
