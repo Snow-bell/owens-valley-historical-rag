@@ -1,7 +1,11 @@
 import pytest
 import json
 from unittest.mock import patch, MagicMock
-from src.judge import judge, parse_scores, SCORE_SCHEMA, JUDGE_ATTEMPTS
+from src.judge import (
+    judge, parse_scores, SCORE_SCHEMA, JUDGE_ATTEMPTS,
+    JUDGE_PROMPT, JUDGE_PROMPT_VERSION, JUDGE_LABEL,
+)
+from src.config import JUDGE_MODEL
 from src.config import JUDGE_NUM_CTX
 
 
@@ -33,6 +37,20 @@ SAMPLE_CHUNKS = [
         "similarity": 0.84,
     },
 ]
+
+@pytest.fixture(autouse=True)
+def isolate_judge_provider():
+    """
+    Pin tests to the OpenAI provider whatever config.py says, and make any
+    unpatched Ollama call fail instead of reaching a real server.
+    Tests that need the Ollama path patch both themselves.
+    """
+    no_ollama = MagicMock()
+    no_ollama.chat.side_effect = AssertionError("test reached a real Ollama call")
+    with patch("src.judge.JUDGE_PROVIDER", "openai"), \
+         patch("src.judge.ollama_client", no_ollama):
+        yield
+
 
 SAMPLE_QUERY = "How did Paiute families sustain themselves through winter?"
 SAMPLE_ANSWER = (
@@ -280,3 +298,20 @@ class TestJudgeProvider:
     def test_unknown_provider_raises(self):
         with pytest.raises(ValueError, match="gemini"):
             judge(SAMPLE_QUERY, SAMPLE_ANSWER, SAMPLE_CHUNKS)
+
+
+class TestJudgePrompt:
+
+    def test_label_combines_model_and_prompt_version(self):
+        assert JUDGE_LABEL == f"{JUDGE_MODEL}@{JUDGE_PROMPT_VERSION}"
+
+    @pytest.mark.parametrize("dimension", [
+        "contextual_alignment", "source_faithfulness", "specificity",
+    ])
+    def test_every_level_anchored(self, dimension):
+        section = JUDGE_PROMPT.split(dimension, 1)[1].split("\n\n", 1)[0]
+        for level in range(1, 6):
+            assert f"{level} = " in section
+
+    def test_covers_thin_passages(self):
+        assert "do not fully answer the question" in JUDGE_PROMPT
