@@ -16,30 +16,56 @@ JUDGE_MAX_TOKENS = 300
 JUDGE_SEED = 42
 JUDGE_ATTEMPTS = 2  # one retry when the response isn't valid scores
 
+# Bump when JUDGE_PROMPT changes. Recorded with the model in each results row,
+# so scores from different prompt versions are never compared.
+# v1 (endpoint-only anchors) is in commit c631743.
+JUDGE_PROMPT_VERSION = "v2"
+JUDGE_LABEL = f"{JUDGE_MODEL}@{JUDGE_PROMPT_VERSION}"
 
-JUDGE_PROMPT = """You are an evaluator assessing the quality of a historical 
-research assistant's answer. You will be given a research question, the answer 
+
+JUDGE_PROMPT = """You are an evaluator assessing the quality of a historical
+research assistant's answer. You will be given a research question, the answer
 produced, and the source passages used — each labeled with their bias context.
 
-Score the answer on four dimensions. Respond ONLY with a valid JSON object — 
+Score the answer on four dimensions. Respond ONLY with a valid JSON object —
 no preamble, no markdown, no explanation outside the JSON.
+
+Score each dimension against its level descriptions. A 5 means the
+answer meets every part of that level's description. An answer that
+is good but falls short in any one way is a 4.
 
 Scoring dimensions (each 1-5):
 
 1. contextual_alignment
    How well does the answer address the specific question asked?
    1 = answer is off-topic or ignores the question
-   5 = answer directly and completely addresses the question
+   2 = touches the topic but misses what the question asks
+   3 = answers part of the question; other parts are skipped or answered
+       only in general terms
+   4 = answers the question, but drifts into tangents or covers one part
+       thinly
+   5 = addresses every part of the question directly and stays on it
 
 2. source_faithfulness
    Does the answer stay grounded in the provided sources?
-   1 = makes claims unsupported by or contradicting the sources
-   5 = every claim is traceable to a provided source passage
+   1 = central claims are unsupported by or contradict the sources
+   2 = several claims cannot be traced to the sources
+   3 = mostly grounded, but at least one substantive claim comes from
+       outside the sources
+   4 = grounded throughout, but some claims are not attributed to a named
+       source or slightly overstate what a passage says
+   5 = every claim is traceable to a provided passage and attributed to
+       its source
 
 3. specificity
    Are the details concrete and particular rather than vague and generic?
    1 = generic statements that could apply to any time or place
-   5 = specific details grounded in the Owens Valley region and period
+   2 = mostly generic, with one or two concrete details
+   3 = a mix of concrete details and generic summary
+   4 = mostly concrete, but leaves out names, dates, places or figures
+       from the passages that bear on the question
+   5 = uses the names, dates, places and figures from the passages that
+       bear on the question
 
 4. bias_handling
    Does the answer appropriately surface or account for source bias?
@@ -47,6 +73,14 @@ Scoring dimensions (each 1-5):
    3 = acknowledges bias exists but doesn't meaningfully address it
    5 = clearly flags biased sources, surfaces contradictions between
        perspectives, and does not uncritically adopt a biased framing
+
+When the passages do not fully answer the question:
+   An answer that says so plainly and does not fill the gap from outside
+   knowledge is behaving correctly. Score source_faithfulness on the
+   claims it does make, contextual_alignment on how well it answers what
+   the passages support and how clearly it states what they leave out,
+   and specificity against the details the passages actually contain.
+   Do not lower a score only because the passages are thin.
 
 Return this exact structure:
 {

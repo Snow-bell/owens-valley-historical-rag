@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from src.retrieve import retrieve
 from src.generate import generate
-from src.judge import judge
-from src.config import OUTPUTS_DIR, JUDGE_MODEL
+from src.judge import judge, JUDGE_LABEL
+from src.config import OUTPUTS_DIR
 from src.results import DIMENSIONS
 
 TEST_QUERIES = [
@@ -100,7 +100,7 @@ def build_row(query: str, model: str, answer: str, chunks: List[Dict], scores: D
     return {
         "query": query,
         "model": model,
-        "judge_model": JUDGE_MODEL,
+        "judge_model": JUDGE_LABEL,
         "contextual_alignment": scores.get("contextual_alignment"),
         "source_faithfulness": scores.get("source_faithfulness"),
         "specificity": scores.get("specificity"),
@@ -115,7 +115,7 @@ def build_error_row(query: str, model: str, error: str) -> Dict:
     return {
         "query": query,
         "model": model,
-        "judge_model": JUDGE_MODEL,
+        "judge_model": JUDGE_LABEL,
         "contextual_alignment": None,
         "source_faithfulness": None,
         "specificity": None,
@@ -177,7 +177,7 @@ def load_answers(answers_path: Path) -> List[Dict]:
 
 def rejudge(answers_path: Path) -> List[Dict]:
     """
-    Re-scores saved answers with the current JUDGE_MODEL, without
+    Re-scores saved answers with the current judge model and prompt, without
     retrieving or generating again.
     """
     records = load_answers(answers_path)
@@ -218,7 +218,7 @@ def save_results(results: List[Dict], csv_path: Path) -> None:
 def print_summary(results: List[Dict], model: str) -> None:
     print("\n" + "=" * 50)
     print(f"EVALUATION SUMMARY — {model.upper()}")
-    print(f"Judge: {JUDGE_MODEL}")
+    print(f"Judge: {JUDGE_LABEL}")
     print("=" * 50)
 
     dimension_averages = {}
@@ -265,16 +265,16 @@ def main() -> None:
             sys.exit(1)
 
         print(f"Re-scoring saved answers — {answers_path.name}")
-        print(f"Judge: {JUDGE_MODEL}\n")
+        print(f"Judge: {JUDGE_LABEL}\n")
 
         results = rejudge(answers_path)
         model = results[0]["model"] if results else model
-        save_results(results, get_csv_path(model, JUDGE_MODEL))
+        save_results(results, get_csv_path(model, JUDGE_LABEL))
         print_summary(results, model)
         return
 
     print(f"Starting evaluation pipeline — model: {model}")
-    print(f"Judge: {JUDGE_MODEL}")
+    print(f"Judge: {JUDGE_LABEL}")
     print(f"Queries to evaluate: {len(TEST_QUERIES)}\n")
 
     results = run_evaluation(model)

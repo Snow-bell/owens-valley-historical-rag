@@ -48,7 +48,7 @@ class TestRunEvaluation:
 
     def test_rows_record_judge_model(self, eval_env):
         results = evaluate.run_evaluation("openai")
-        assert all(r["judge_model"] == evaluate.JUDGE_MODEL for r in results)
+        assert all(r["judge_model"] == evaluate.JUDGE_LABEL for r in results)
 
     def test_saves_full_answers_and_chunks(self, eval_env):
         tmp_path, _ = eval_env
@@ -114,3 +114,10 @@ class TestCsvPath:
         with patch.object(evaluate, "OUTPUTS_DIR", tmp_path):
             path = evaluate.get_csv_path("openai", "gemma3:12b")
             assert path.name == "eval_results_openai__judge_gemma3_12b.csv"
+
+    def test_prompt_versions_get_separate_files(self, tmp_path):
+        with patch.object(evaluate, "OUTPUTS_DIR", tmp_path):
+            v1 = evaluate.get_csv_path("openai", "gemma3:12b")
+            v2 = evaluate.get_csv_path("openai", "gemma3:12b@v2")
+            assert v1 != v2
+            assert v2.name == "eval_results_openai__judge_gemma3_12b@v2.csv"

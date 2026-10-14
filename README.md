@@ -112,7 +112,7 @@ Re-runs only the judge on a saved run, without retrieving or generating again. C
 python -m src.evaluate --rejudge eval_answers_openai.jsonl
 ```
 
-Results saved to `outputs/eval_results_<model>__judge_<judge>.csv`. The regression check refuses to compare runs scored by different judges.
+Results saved to `outputs/eval_results_<model>__judge_<judge>.csv`, where `<judge>` is the judge model plus the judge prompt version (for example `gemma3_12b@v2`). The regression check refuses to compare runs scored by different judge models or prompt versions.
 
 ### Compare models
 

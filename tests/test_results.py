@@ -64,6 +64,11 @@ class TestSameJudge:
         current = [{"judge_model": "gemma3:12b"}]
         assert same_judge(baseline, current) is False
 
+    def test_different_prompt_versions_fail(self):
+        baseline = [{"judge_model": "gemma3:12b"}]
+        current = [{"judge_model": "gemma3:12b@v2"}]
+        assert same_judge(baseline, current) is False
+
     def test_mixed_judges_in_one_file_fail(self):
         baseline = [{"judge_model": "gpt-4o-mini"}, {"judge_model": "gemma3:12b"}]
         assert same_judge(baseline, baseline) is False
