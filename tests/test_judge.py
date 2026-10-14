@@ -1,7 +1,8 @@
 import pytest
 import json
 from unittest.mock import patch, MagicMock
-from src.judge import judge
+from src.judge import judge, parse_scores, SCORE_SCHEMA, JUDGE_ATTEMPTS
+from src.config import JUDGE_NUM_CTX
 
 
 SAMPLE_CHUNKS = [
@@ -148,3 +149,134 @@ class TestJudge:
         user_message = call_kwargs["messages"][1]["content"]
         assert "institutional_bias" in user_message
         assert "severe" in user_message
+
+
+VALID_SCORES = {
+    "contextual_alignment": 5,
+    "source_faithfulness": 4,
+    "specificity": 4,
+    "bias_handling": 3,
+    "reasoning": "Grounded answer that flags the newspaper's bias.",
+}
+
+
+def openai_response(content):
+    response = MagicMock()
+    response.choices[0].message.content = content
+    return response
+
+
+def ollama_response(content):
+    response = MagicMock()
+    response.message.content = content
+    return response
+
+
+class TestParseScores:
+
+    def test_valid_scores_parse(self):
+        assert parse_scores(json.dumps(VALID_SCORES)) == VALID_SCORES
+
+    @pytest.mark.parametrize("bad_value", [0, 6, "5", 4.5, True, None])
+    def test_invalid_score_value_rejected(self, bad_value):
+        scores = {**VALID_SCORES, "specificity": bad_value}
+        assert parse_scores(json.dumps(scores)) is None
+
+    def test_missing_dimension_rejected(self):
+        scores = {k: v for k, v in VALID_SCORES.items() if k != "bias_handling"}
+        assert parse_scores(json.dumps(scores)) is None
+
+    def test_non_object_json_rejected(self):
+        assert parse_scores("[5, 4, 4, 3]") is None
+
+
+class TestJudgeRetry:
+
+    @patch("src.judge.client")
+    def test_retries_once_after_invalid_response(self, mock_client):
+        mock_client.chat.completions.create.side_effect = [
+            openai_response("not json"),
+            openai_response(json.dumps(VALID_SCORES)),
+        ]
+
+        result = judge(SAMPLE_QUERY, SAMPLE_ANSWER, SAMPLE_CHUNKS)
+
+        assert mock_client.chat.completions.create.call_count == 2
+        assert result["specificity"] == 4
+
+    @patch("src.judge.client")
+    def test_out_of_range_scores_return_none(self, mock_client):
+        mock_client.chat.completions.create.return_value = openai_response(
+            json.dumps({**VALID_SCORES, "bias_handling": 7})
+        )
+
+        result = judge(SAMPLE_QUERY, SAMPLE_ANSWER, SAMPLE_CHUNKS)
+
+        assert mock_client.chat.completions.create.call_count == JUDGE_ATTEMPTS
+        assert result["bias_handling"] is None
+        assert '"bias_handling": 7' in result["reasoning"]
+
+
+@patch("src.judge.JUDGE_PROVIDER", "ollama")
+class TestOllamaJudge:
+
+    @patch("src.judge.client")
+    @patch("src.judge.ollama_client")
+    def test_uses_ollama_not_openai(self, mock_ollama, mock_openai):
+        mock_ollama.chat.return_value = ollama_response(json.dumps(VALID_SCORES))
+
+        result = judge(SAMPLE_QUERY, SAMPLE_ANSWER, SAMPLE_CHUNKS)
+
+        mock_ollama.chat.assert_called_once()
+        mock_openai.chat.completions.create.assert_not_called()
+        assert result["query"] == SAMPLE_QUERY
+        assert result["contextual_alignment"] == 5
+
+    @patch("src.judge.JUDGE_MODEL", "gemma3:12b")
+    @patch("src.judge.ollama_client")
+    def test_passes_model_context_and_deterministic_options(self, mock_ollama):
+        mock_ollama.chat.return_value = ollama_response(json.dumps(VALID_SCORES))
+
+        judge(SAMPLE_QUERY, SAMPLE_ANSWER, SAMPLE_CHUNKS)
+
+        call_kwargs = mock_ollama.chat.call_args.kwargs
+        assert call_kwargs["model"] == "gemma3:12b"
+        assert call_kwargs["options"]["num_ctx"] == JUDGE_NUM_CTX
+        assert call_kwargs["options"]["temperature"] == 0.0
+        assert "seed" in call_kwargs["options"]
+
+    @patch("src.judge.ollama_client")
+    def test_requests_score_schema(self, mock_ollama):
+        mock_ollama.chat.return_value = ollama_response(json.dumps(VALID_SCORES))
+
+        judge(SAMPLE_QUERY, SAMPLE_ANSWER, SAMPLE_CHUNKS)
+
+        assert mock_ollama.chat.call_args.kwargs["format"] == SCORE_SCHEMA
+
+    @patch("src.judge.ollama_client")
+    def test_bias_context_included_in_prompt(self, mock_ollama):
+        mock_ollama.chat.return_value = ollama_response(json.dumps(VALID_SCORES))
+
+        judge(SAMPLE_QUERY, SAMPLE_ANSWER, SAMPLE_CHUNKS)
+
+        user_message = mock_ollama.chat.call_args.kwargs["messages"][1]["content"]
+        assert "institutional_bias" in user_message
+        assert "severe" in user_message
+
+    @patch("src.judge.ollama_client")
+    def test_parse_failure_returns_none_scores(self, mock_ollama):
+        mock_ollama.chat.return_value = ollama_response("bad response")
+
+        result = judge(SAMPLE_QUERY, SAMPLE_ANSWER, SAMPLE_CHUNKS)
+
+        assert mock_ollama.chat.call_count == JUDGE_ATTEMPTS
+        assert result["contextual_alignment"] is None
+        assert "bad response" in result["reasoning"]
+
+
+class TestJudgeProvider:
+
+    @patch("src.judge.JUDGE_PROVIDER", "gemini")
+    def test_unknown_provider_raises(self):
+        with pytest.raises(ValueError, match="gemini"):
+            judge(SAMPLE_QUERY, SAMPLE_ANSWER, SAMPLE_CHUNKS)

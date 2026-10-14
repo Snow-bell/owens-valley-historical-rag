@@ -106,7 +106,7 @@ Results saved to `outputs/eval_results_<model>.csv`. Full answers and retrieved 
 
 ### Re-score saved answers
 
-Re-runs only the judge (set `JUDGE_MODEL` in `src/config.py`) on a saved run, without retrieving or generating again:
+Re-runs only the judge on a saved run, without retrieving or generating again. Choose the judge in `src/config.py`: `JUDGE_PROVIDER` (`"openai"` or `"ollama"`) and `JUDGE_MODEL` (for example `gpt-4o-mini` or `gemma3:12b`). The Ollama judge uses a `JUDGE_NUM_CTX` context window and a JSON schema for its scores.
 
 ```bash
 python -m src.evaluate --rejudge eval_answers_openai.jsonl

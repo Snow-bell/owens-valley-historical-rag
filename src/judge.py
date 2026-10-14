@@ -1,13 +1,20 @@
 import json
-from typing import Dict
+import ollama as ollama_client
+from typing import Dict, List, Optional
 from openai import OpenAI
 from src.config import (
     OPENAI_API_KEY,
+    JUDGE_PROVIDER,
     JUDGE_MODEL,
-    MAX_TOKENS,
+    JUDGE_NUM_CTX,
 )
+from src.results import DIMENSIONS
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+JUDGE_MAX_TOKENS = 300
+JUDGE_SEED = 42
+JUDGE_ATTEMPTS = 2  # one retry when the response isn't valid scores
 
 
 JUDGE_PROMPT = """You are an evaluator assessing the quality of a historical 
@@ -51,12 +58,18 @@ Return this exact structure:
 }"""
 
 
-def judge(query: str, answer: str, chunks: list) -> Dict:
-    """
-    Scores answer quality on four dimensions using an LLM judge.
-    Returns scores and reasoning. On parse failure returns error dict
-    rather than crashing the evaluation pipeline.
-    """
+# Constrains Ollama output to the structure JUDGE_PROMPT asks for
+SCORE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        **{dim: {"type": "integer", "minimum": 1, "maximum": 5} for dim in DIMENSIONS},
+        "reasoning": {"type": "string"},
+    },
+    "required": [*DIMENSIONS, "reasoning"],
+}
+
+
+def build_user_message(query: str, answer: str, chunks: List[Dict]) -> str:
     context = "\n\n---\n\n".join(
         f"[{c['metadata']['source']}"
         f" | bias: {c['metadata']['bias_tag']}"
@@ -64,34 +77,98 @@ def judge(query: str, answer: str, chunks: list) -> Dict:
         for c in chunks
     )
 
-    user_message = (
+    return (
         f"Research question: {query}\n\n"
         f"Answer to evaluate:\n{answer}\n\n"
         f"Source passages used:\n{context}"
     )
 
+
+def judge_openai(user_message: str) -> str:
     response = client.chat.completions.create(
         model=JUDGE_MODEL,
         temperature=0.0,
-        max_tokens=300,
+        max_tokens=JUDGE_MAX_TOKENS,
         messages=[
             {"role": "system", "content": JUDGE_PROMPT},
             {"role": "user", "content": user_message},
         ],
     )
+    return response.choices[0].message.content.strip()
 
-    raw = response.choices[0].message.content.strip()
 
+def judge_ollama(user_message: str) -> str:
+    response = ollama_client.chat(
+        model=JUDGE_MODEL,
+        messages=[
+            {"role": "system", "content": JUDGE_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
+        format=SCORE_SCHEMA,
+        options={
+            "num_ctx": JUDGE_NUM_CTX,
+            "num_predict": JUDGE_MAX_TOKENS,
+            "temperature": 0.0,
+            "seed": JUDGE_SEED,
+        },
+    )
+    return response.message.content.strip()
+
+
+JUDGE_PROVIDERS = {
+    "openai": judge_openai,
+    "ollama": judge_ollama,
+}
+
+
+def parse_scores(raw: str) -> Optional[Dict]:
+    """
+    Returns the parsed scores if every dimension is an integer 1-5,
+    otherwise None.
+    """
     try:
         scores = json.loads(raw)
-        scores["query"] = query
-        return scores
     except json.JSONDecodeError:
-        return {
-            "query": query,
-            "contextual_alignment": None,
-            "source_faithfulness": None,
-            "specificity": None,
-            "bias_handling": None,
-            "reasoning": f"Parse error — raw response: {raw}",
-        }
+        return None
+
+    if not isinstance(scores, dict):
+        return None
+
+    for dim in DIMENSIONS:
+        value = scores.get(dim)
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 5:
+            return None
+
+    return scores
+
+
+def judge(query: str, answer: str, chunks: list) -> Dict:
+    """
+    Scores answer quality on four dimensions using an LLM judge from
+    JUDGE_PROVIDER. Retries once if the response isn't valid scores, then
+    returns an error dict rather than crashing the evaluation pipeline.
+    """
+    if JUDGE_PROVIDER not in JUDGE_PROVIDERS:
+        raise ValueError(
+            f"Unknown JUDGE_PROVIDER {JUDGE_PROVIDER!r}. "
+            f"Expected one of: {', '.join(JUDGE_PROVIDERS)}."
+        )
+
+    call_judge = JUDGE_PROVIDERS[JUDGE_PROVIDER]
+    user_message = build_user_message(query, answer, chunks)
+
+    for _ in range(JUDGE_ATTEMPTS):
+        raw = call_judge(user_message)
+        scores = parse_scores(raw)
+        if scores is not None:
+            scores["query"] = query
+            return scores
+
+    return {
+        "query": query,
+        "contextual_alignment": None,
+        "source_faithfulness": None,
+        "specificity": None,
+        "bias_handling": None,
+        "reasoning": f"Parse error — raw response: {raw}",
+    }
