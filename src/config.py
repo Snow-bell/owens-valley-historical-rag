@@ -21,8 +21,8 @@ TOP_P = 0.9
 MAX_TOKENS = 1000
 
 # Judge
-JUDGE_PROVIDER = "openai"   # "openai" or "ollama"
-JUDGE_MODEL = "gpt-4o-mini"
+JUDGE_PROVIDER = "ollama"   # "openai" or "ollama"
+JUDGE_MODEL = "gemma3:12b" # "gpt-4o-mini" or "gemma3:12b"
 JUDGE_NUM_CTX = 16384      # Ollama context window; its default silently truncates the judge prompt
 
 # Chunking
