@@ -4,6 +4,7 @@ from src.config import (
     OPENAI_API_KEY,
     EMBEDDING_MODEL,
     TOP_K,
+    RERANK_CANDIDATES,
 )
 from src.embed import get_chroma_collection
 from src.rerank import rerank
@@ -35,13 +36,17 @@ def diversify(chunks: List[Dict], max_per_source: int = 2) -> List[Dict]:
     return result
 
 
-def retrieve(query: str, top_k: int = TOP_K) -> List[Dict]:
+def get_candidates(query: str, n: int = RERANK_CANDIDATES) -> List[Dict]:
+    """
+    Returns the n chunks closest to the query by embedding similarity,
+    before reranking.
+    """
     collection = get_chroma_collection()
     query_embedding = embed_query(query)
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=top_k * 3,
+        n_results=n,
         include=["documents", "metadatas", "distances"],
     )
 
@@ -56,9 +61,21 @@ def retrieve(query: str, top_k: int = TOP_K) -> List[Dict]:
             "metadata": metadata,
             "similarity": round(1 - distance, 4),
         })
+    return chunks
+
+
+def retrieve(query: str, top_k: int = TOP_K, strict: bool = False) -> List[Dict]:
+    """
+    Fetches RERANK_CANDIDATES chunks and returns the top_k after reranking.
+    If reranking fails, falls back to the diversity filter, unless strict
+    is set (evaluation runs), in which case the error is raised.
+    """
+    chunks = get_candidates(query, max(RERANK_CANDIDATES, top_k))
 
     try:
         return rerank(query, chunks, top_n=top_k)
     except Exception as e:
+        if strict:
+            raise
         print(f"  [WARNING] Rerank failed, falling back to diversity filter: {e}")
         return diversify(chunks)[:top_k]

@@ -196,3 +196,30 @@ class TestRetrieve:
 
         chunks = retrieve("test query", top_k=2)
         assert len(chunks) == 2
+
+
+class TestStrictRetrieve:
+
+    @pytest.fixture
+    def pool(self):
+        with patch("src.retrieve.get_candidates") as mock:
+            mock.return_value = [
+                {"text": "a", "metadata": {"source": "a.pdf", "source_path": "a.pdf"}, "similarity": 0.9},
+                {"text": "b", "metadata": {"source": "b.pdf", "source_path": "b.pdf"}, "similarity": 0.8},
+            ]
+            yield mock
+
+    @patch("src.retrieve.rerank", side_effect=RuntimeError("Cohere unavailable"))
+    def test_strict_raises_instead_of_falling_back(self, mock_rerank, pool):
+        with pytest.raises(RuntimeError):
+            retrieve("test query", strict=True)
+
+    @patch("src.retrieve.rerank", side_effect=RuntimeError("Cohere unavailable"))
+    def test_default_still_falls_back(self, mock_rerank, pool):
+        assert len(retrieve("test query", top_k=2)) == 2
+
+    @patch("src.retrieve.rerank", side_effect=lambda query, chunks, top_n: chunks[:top_n])
+    def test_fetches_candidate_pool(self, mock_rerank, pool):
+        from src.config import RERANK_CANDIDATES
+        retrieve("test query")
+        assert pool.call_args.args[1] == RERANK_CANDIDATES

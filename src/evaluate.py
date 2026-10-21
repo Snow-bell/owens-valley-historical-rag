@@ -149,7 +149,7 @@ def run_evaluation(model: str = "openai") -> List[Dict]:
             record = {"query": query, "model": model}
 
             try:
-                chunks = retrieve(query)
+                chunks = retrieve(query, strict=True)
                 result = generate(query, chunks, model=model)
                 record.update({"answer": result["answer"], "chunks": chunks})
 
