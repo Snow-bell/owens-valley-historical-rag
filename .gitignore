@@ -231,3 +231,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Retrieval label review checklist: local working file, not part of the repo
+data/retrieval_labels_review.md
