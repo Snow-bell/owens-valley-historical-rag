@@ -234,3 +234,6 @@ __marimo__/
 
 # Retrieval label review checklist: local working file, not part of the repo
 data/retrieval_labels_review.md
+
+# Local backups of the Chroma index (for example data/chroma_pre_b1)
+data/chroma_*/
