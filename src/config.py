@@ -30,6 +30,14 @@ CHUNK_METHOD = "fixed"   # "fixed" (800-token windows) or "semantic"
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
 
+# Semantic chunking: sentences grouped at topic changes
+SENTENCE_MODEL = "sentence-transformers/all-MiniLM-L6-v2"   # local, CPU
+SEMANTIC_WINDOW = 1              # sentences either side, embedded with each sentence
+SEMANTIC_BREAK_PERCENTILE = 95   # break above this percentile of all neighbour distances in the corpus
+SEMANTIC_MIN_TOKENS = 300        # smaller pieces merge into a neighbour; 300 brings mean size to ~560 tokens (fixed: ~710)
+SEMANTIC_MAX_TOKENS = CHUNK_SIZE # same cap as fixed chunks, so B2 against B1 tests only where chunks break
+SEMANTIC_OVERLAP_MAX_TOKENS = 100  # the repeated last sentence is skipped if longer
+
 # Ingestion
 MAX_CHARS = 600_000   # safety cap per document; long books are trimmed with registry page ranges
 

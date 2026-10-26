@@ -22,6 +22,8 @@ STORED_METADATA = [
     "chunk_index",
     "chunk_method",
     "clean_version",
+    "token_count",      # semantic chunks
+    "n_sentences",      # semantic chunks
 ]
 
 

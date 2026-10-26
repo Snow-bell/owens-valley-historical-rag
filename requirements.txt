@@ -10,3 +10,5 @@ beautifulsoup4
 requests
 cohere
 ollama
+nltk
+sentence-transformers

@@ -48,8 +48,11 @@ git clone https://github.com/Snow-bell/owens-valley-historical-rag.git
 cd owens-valley-historical-rag
 python -m venv .venv
 source .venv/bin/activate
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 ```
+
+The `pip install torch` line installs the CPU-only PyTorch build that `sentence-transformers` needs for semantic chunking; without it, pip pulls the much larger CUDA build. NLTK's `punkt_tab` sentence data and the MiniLM model download on first use.
 
 ### Configuration
 
