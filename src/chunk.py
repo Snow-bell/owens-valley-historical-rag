@@ -1,6 +1,20 @@
+import re
 import tiktoken
 from typing import List, Dict
 from src.config import CHUNK_SIZE, CHUNK_OVERLAP
+
+# Chunks where letters make up less than this share of the non-space
+# characters are OCR garbage or numeric tables, and aren't indexed.
+# Real prose heavy with figures sits around 0.65.
+MIN_LETTER_SHARE = 0.5
+
+
+def letter_share(text: str) -> float:
+    characters = re.sub(r"\s", "", text)
+    if not characters:
+        return 0.0
+    return sum(c.isalpha() for c in characters) / len(characters)
+
 
 def get_encoder():
     return tiktoken.get_encoding("cl100k_base")
@@ -51,10 +65,17 @@ def chunk_documents(documents: List[Dict]) -> List[Dict]:
         documents: List of dicts with 'text' and 'metadata'
     
     Returns:
-        Flat list of all chunks across all documents
+        Flat list of all chunks across all documents, without chunks below
+        MIN_LETTER_SHARE. Kept chunks keep their chunk_index, so IDs are stable.
     """
     all_chunks = []
+    dropped = 0
     for doc in documents:
-        chunks = chunk_text(doc["text"], doc["metadata"])
-        all_chunks.extend(chunks)
+        for chunk in chunk_text(doc["text"], doc["metadata"]):
+            if letter_share(chunk["text"]) < MIN_LETTER_SHARE:
+                dropped += 1
+                continue
+            all_chunks.append(chunk)
+    if dropped:
+        print(f"  Dropped {dropped} chunks that are mostly symbols or digits.")
     return all_chunks

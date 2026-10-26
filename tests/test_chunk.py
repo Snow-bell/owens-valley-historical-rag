@@ -84,3 +84,21 @@ class TestChunkDocuments:
     def test_empty_document_list_returns_empty(self):
         chunks = chunk_documents([])
         assert chunks == []
+
+class TestJunkFilter:
+
+    def test_letter_share(self):
+        from src.chunk import letter_share
+        assert letter_share("abc 123") == 0.5
+        assert letter_share("   ") == 0.0
+
+    def test_drops_symbol_and_table_chunks_keeps_prose(self):
+        from src.chunk import chunk_documents
+        meta = {"source": "a.pdf", "source_path": "a.pdf", "tier": 2,
+                "bias_tag": "none", "bias_level": "none", "description": "d"}
+        documents = [
+            {"text": "The aqueduct opened in 1913 at the Cascades.", "metadata": meta},
+            {"text": "! ! ! ! ! ! 0 1952.0 2943.0 20 197.6 407.6", "metadata": {**meta, "source": "b.pdf"}},
+        ]
+        chunks = chunk_documents(documents)
+        assert [c["metadata"]["source"] for c in chunks] == ["a.pdf"]
