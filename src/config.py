@@ -26,6 +26,7 @@ JUDGE_MODEL = "gemma3:12b" # "gpt-4o-mini" or "gemma3:12b"
 JUDGE_NUM_CTX = 16384      # Ollama context window; its default silently truncates the judge prompt
 
 # Chunking
+CHUNK_METHOD = "fixed"   # "fixed" (800-token windows) or "semantic"
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
 
@@ -42,8 +43,13 @@ RERANK_MODEL = "rerank-english-v3.0"
 RERANK_TOP_N = TOP_K       
 COHERE_CALLS_PER_MINUTE = 10    # trial key limit; raise for a production key
 
-# Collection
-CHROMA_COLLECTION = "owens_valley"
+# Collection: one per chunk method, so both indexes stay available to compare
+CHROMA_COLLECTIONS = {
+    "fixed": "owens_valley",
+    "semantic": "owens_valley_semantic",
+}
+DEFAULT_COLLECTION = CHROMA_COLLECTIONS["fixed"]
+CHROMA_COLLECTION = CHROMA_COLLECTIONS[CHUNK_METHOD]
 
 # Regression
 REGRESSION_THRESHOLD = 0.3

@@ -121,3 +121,38 @@ class TestCsvPath:
             v2 = evaluate.get_csv_path("openai", "gemma3:12b@v2")
             assert v1 != v2
             assert v2.name == "eval_results_openai__judge_gemma3_12b@v2.csv"
+
+
+class TestCollections:
+
+    def test_rows_and_answers_record_collection(self, eval_env):
+        tmp_path, _ = eval_env
+        results = evaluate.run_evaluation("openai")
+        assert all(r["collection"] == evaluate.CHROMA_COLLECTION for r in results)
+        record = json.loads((tmp_path / "eval_answers_openai.jsonl").read_text().splitlines()[0])
+        assert record["collection"] == evaluate.CHROMA_COLLECTION
+
+    def test_default_collection_keeps_original_names(self, tmp_path):
+        with patch.object(evaluate, "OUTPUTS_DIR", tmp_path):
+            assert evaluate.get_csv_path("openai", collection="owens_valley").name == "eval_results_openai.csv"
+            assert evaluate.get_answers_path("openai", "owens_valley").name == "eval_answers_openai.jsonl"
+
+    def test_semantic_collection_gets_its_own_files(self, tmp_path):
+        with patch.object(evaluate, "OUTPUTS_DIR", tmp_path):
+            csv_path = evaluate.get_csv_path("openai", "gemma3:12b@v2", "owens_valley_semantic")
+            assert csv_path.name == "eval_results_openai__owens_valley_semantic__judge_gemma3_12b@v2.csv"
+            answers = evaluate.get_answers_path("openai", "owens_valley_semantic")
+            assert answers.name == "eval_answers_openai__owens_valley_semantic.jsonl"
+
+    def test_rejudge_uses_collection_from_saved_answers(self, tmp_path):
+        answers = tmp_path / "answers.jsonl"
+        answers.write_text(
+            json.dumps({"query": "q1", "model": "openai", "collection": "owens_valley_semantic",
+                        "answer": "a", "chunks": SAMPLE_CHUNKS}) + "\n"
+            + json.dumps({"query": "q2", "model": "openai", "answer": "a", "chunks": SAMPLE_CHUNKS}) + "\n"
+        )
+        with patch.object(evaluate, "judge", return_value=SAMPLE_SCORES):
+            results = evaluate.rejudge(answers)
+        assert results[0]["collection"] == "owens_valley_semantic"
+        assert results[1]["collection"] == "owens_valley"    # older files predate the field
+

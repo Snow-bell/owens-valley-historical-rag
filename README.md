@@ -85,6 +85,8 @@ Indexes automatically on first run. To force reindex:
 python main.py --reindex
 ```
 
+`--reindex` rebuilds the collection from scratch, so chunks from deleted or changed documents don't linger. Each chunking method has its own collection: `CHUNK_METHOD` in `src/config.py` picks `fixed` (800-token windows, collection `owens_valley`) or `semantic` (`owens_valley_semantic`). Reindexing one leaves the other intact, so the two can be compared. Evaluation runs against the semantic collection add its name to their output files.
+
 ### Query the corpus
 
 Once indexed the tool enters an interactive query loop:

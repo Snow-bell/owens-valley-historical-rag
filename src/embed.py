@@ -11,23 +11,53 @@ from src.config import (
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+# Chunk metadata stored in Chroma; Chroma accepts only str, int, float and bool
+STORED_METADATA = [
+    "source",
+    "source_path",
+    "tier",
+    "bias_tag",
+    "bias_level",
+    "description",
+    "chunk_index",
+    "chunk_method",
+    "clean_version",
+]
 
-def get_chroma_collection():
-    """
-    Initialize ChromaDB client and return the collection.
-    Creates the collection if it doesn't exist.
-    """
-    chroma_client = chromadb.PersistentClient(
+
+def get_chroma_client():
+    return chromadb.PersistentClient(
         path=str(CHROMA_DIR),
         settings=Settings(anonymized_telemetry=False),
     )
 
-    collection = chroma_client.get_or_create_collection(
-        name=CHROMA_COLLECTION,
+
+def get_chroma_collection(name: str = CHROMA_COLLECTION):
+    """
+    Initialize ChromaDB client and return the collection for the current
+    CHUNK_METHOD (or the one named). Creates the collection if it doesn't exist.
+    """
+    return get_chroma_client().get_or_create_collection(
+        name=name,
         metadata={"hnsw:space": "cosine"},
     )
 
-    return collection
+
+def reset_collection(name: str = CHROMA_COLLECTION) -> None:
+    """
+    Deletes the named collection so a reindex starts empty. Upserting into
+    an existing collection would leave chunks from deleted or shortened
+    documents behind. Other collections are untouched.
+    """
+    chroma_client = get_chroma_client()
+    if name in [c.name for c in chroma_client.list_collections()]:
+        chroma_client.delete_collection(name)
+        print(f"  Cleared collection {name}.")
+
+
+def chunk_id(chunk: Dict) -> str:
+    # source_path, not the bare file name, so same-named files in different folders don't collide
+    return f"{chunk['metadata']['source_path']}__chunk{chunk['chunk_index']}"
 
 
 def embed_chunks(chunks: List[Dict]) -> List[List[float]]:
@@ -51,23 +81,12 @@ def store_chunks(chunks: List[Dict], embeddings: List[List[float]]) -> None:
     """
     collection = get_chroma_collection()
 
-    ids = [
-        f"{chunk['metadata']['source']}__chunk{chunk['chunk_index']}"
-        for chunk in chunks
-    ]
+    ids = [chunk_id(chunk) for chunk in chunks]
 
     documents = [chunk["text"] for chunk in chunks]
 
     metadatas = [
-        {
-            "source": chunk["metadata"]["source"],
-            "source_path": chunk["metadata"]["source_path"],
-            "tier": chunk["metadata"]["tier"],
-            "bias_tag": chunk["metadata"]["bias_tag"],
-            "bias_level": chunk["metadata"]["bias_level"],
-            "description": chunk["metadata"]["description"],
-            "chunk_index": chunk["chunk_index"],
-        }
+        {key: chunk["metadata"][key] for key in STORED_METADATA if key in chunk["metadata"]}
         for chunk in chunks
     ]
 

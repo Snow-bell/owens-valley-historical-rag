@@ -1,7 +1,7 @@
 import re
 import tiktoken
 from typing import List, Dict
-from src.config import CHUNK_SIZE, CHUNK_OVERLAP
+from src.config import CHUNK_SIZE, CHUNK_OVERLAP, CHUNK_METHOD
 
 # Chunks where letters make up less than this share of the non-space
 # characters are OCR garbage or numeric tables, and aren't indexed.
@@ -48,6 +48,7 @@ def chunk_text(text: str, metadata: Dict) -> List[Dict]:
             "metadata": {
                 **metadata,
                 "chunk_index": chunk_index,
+                "chunk_method": "fixed",
             }
         })
         
@@ -57,17 +58,23 @@ def chunk_text(text: str, metadata: Dict) -> List[Dict]:
     return chunks
 
 
-def chunk_documents(documents: List[Dict]) -> List[Dict]:
+def chunk_documents(documents: List[Dict], method: str = CHUNK_METHOD) -> List[Dict]:
     """
     Chunk a list of documents.
     
     Args:
         documents: List of dicts with 'text' and 'metadata'
+        method: "fixed" (CHUNK_SIZE-token windows) or "semantic"
     
     Returns:
         Flat list of all chunks across all documents, without chunks below
         MIN_LETTER_SHARE. Kept chunks keep their chunk_index, so IDs are stable.
     """
+    if method == "semantic":
+        raise NotImplementedError("The semantic chunker isn't implemented yet; set CHUNK_METHOD = \"fixed\".")
+    if method != "fixed":
+        raise ValueError(f"Unknown chunk method {method!r}. Expected \"fixed\" or \"semantic\".")
+
     all_chunks = []
     dropped = 0
     for doc in documents:

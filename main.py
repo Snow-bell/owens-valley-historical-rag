@@ -4,7 +4,8 @@ from rich.panel import Panel
 from rich.text import Text
 from src.ingest import load_corpus
 from src.chunk import chunk_documents
-from src.embed import embed_and_store, get_chroma_collection
+from src.embed import embed_and_store, get_chroma_collection, reset_collection
+from src.config import CHUNK_METHOD, CHROMA_COLLECTION
 from src.retrieve import retrieve
 from src.generate import generate
 
@@ -13,12 +14,18 @@ console = Console()
 
 def index_corpus() -> None:
     """
-    Load, chunk, embed, and store the full corpus in ChromaDB.
+    Load, chunk, embed, and store the full corpus in the collection for the
+    current CHUNK_METHOD, replacing its contents. Other collections are kept.
     Run this once before querying, or whenever the corpus changes.
     """
-    console.print("\n[bold cyan]Indexing corpus...[/bold cyan]")
+    console.print(
+        f"\n[bold cyan]Indexing corpus into {CHROMA_COLLECTION} "
+        f"({CHUNK_METHOD} chunks)...[/bold cyan]"
+    )
     documents = load_corpus()
     chunks = chunk_documents(documents)
+    # Clear only after chunking succeeds, so a failed run leaves the old index in place
+    reset_collection()
     embed_and_store(chunks)
     console.print("[bold green]Corpus indexed successfully.[/bold green]\n")
 

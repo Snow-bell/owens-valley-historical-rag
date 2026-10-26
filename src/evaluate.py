@@ -6,7 +6,7 @@ from typing import List, Dict, Optional
 from src.retrieve import retrieve
 from src.generate import generate
 from src.judge import judge, JUDGE_LABEL
-from src.config import OUTPUTS_DIR
+from src.config import OUTPUTS_DIR, CHROMA_COLLECTION, DEFAULT_COLLECTION
 from src.results import DIMENSIONS
 
 TEST_QUERIES = [
@@ -67,6 +67,7 @@ CSV_FIELDS = [
     "query",
     "model",
     "judge_model",
+    "collection",
     "contextual_alignment",
     "source_faithfulness",
     "specificity",
@@ -81,18 +82,29 @@ def safe_name(name: str) -> str:
     return name.replace("/", "_").replace(":", "_")
 
 
-def get_csv_path(model: str, judge_model: Optional[str] = None) -> Path:
+def collection_suffix(collection: str) -> str:
+    # Runs against the default (fixed-chunk) collection keep their original file names
+    return "" if collection == DEFAULT_COLLECTION else f"__{safe_name(collection)}"
+
+
+def get_csv_path(
+    model: str, judge_model: Optional[str] = None, collection: str = CHROMA_COLLECTION
+) -> Path:
     # Re-scored runs get the judge in the filename so the original CSV is kept
+    name = f"eval_results_{safe_name(model)}{collection_suffix(collection)}"
     if judge_model:
-        return OUTPUTS_DIR / f"eval_results_{safe_name(model)}__judge_{safe_name(judge_model)}.csv"
-    return OUTPUTS_DIR / f"eval_results_{safe_name(model)}.csv"
+        name += f"__judge_{safe_name(judge_model)}"
+    return OUTPUTS_DIR / f"{name}.csv"
 
 
-def get_answers_path(model: str) -> Path:
-    return OUTPUTS_DIR / f"eval_answers_{safe_name(model)}.jsonl"
+def get_answers_path(model: str, collection: str = CHROMA_COLLECTION) -> Path:
+    return OUTPUTS_DIR / f"eval_answers_{safe_name(model)}{collection_suffix(collection)}.jsonl"
 
 
-def build_row(query: str, model: str, answer: str, chunks: List[Dict], scores: Dict) -> Dict:
+def build_row(
+    query: str, model: str, answer: str, chunks: List[Dict], scores: Dict,
+    collection: str = CHROMA_COLLECTION,
+) -> Dict:
     sources_used = ", ".join(
         set(c["metadata"]["source"] for c in chunks)
     )
@@ -101,6 +113,7 @@ def build_row(query: str, model: str, answer: str, chunks: List[Dict], scores: D
         "query": query,
         "model": model,
         "judge_model": JUDGE_LABEL,
+        "collection": collection,
         "contextual_alignment": scores.get("contextual_alignment"),
         "source_faithfulness": scores.get("source_faithfulness"),
         "specificity": scores.get("specificity"),
@@ -111,11 +124,12 @@ def build_row(query: str, model: str, answer: str, chunks: List[Dict], scores: D
     }
 
 
-def build_error_row(query: str, model: str, error: str) -> Dict:
+def build_error_row(query: str, model: str, error: str, collection: str = CHROMA_COLLECTION) -> Dict:
     return {
         "query": query,
         "model": model,
         "judge_model": JUDGE_LABEL,
+        "collection": collection,
         "contextual_alignment": None,
         "source_faithfulness": None,
         "specificity": None,
@@ -146,7 +160,7 @@ def run_evaluation(model: str = "openai") -> List[Dict]:
     with open(answers_path, "w", encoding="utf-8") as answers_file:
         for i, query in enumerate(TEST_QUERIES):
             print(f"\n[{i + 1}/{len(TEST_QUERIES)}] {query}")
-            record = {"query": query, "model": model}
+            record = {"query": query, "model": model, "collection": CHROMA_COLLECTION}
 
             try:
                 chunks = retrieve(query, strict=True)
@@ -186,23 +200,25 @@ def rejudge(answers_path: Path) -> List[Dict]:
     for i, record in enumerate(records):
         query = record["query"]
         model = record["model"]
+        # Answer files written before collections were recorded came from the default one
+        collection = record.get("collection", DEFAULT_COLLECTION)
         print(f"\n[{i + 1}/{len(records)}] {query}")
 
         if "answer" not in record:
             print("  [SKIP] No saved answer for this query.")
             results.append(build_error_row(
-                query, model, f"Pipeline error: {record.get('error', 'no saved answer')}"
+                query, model, f"Pipeline error: {record.get('error', 'no saved answer')}", collection
             ))
             continue
 
         try:
             scores = judge(query, record["answer"], record["chunks"])
-            row = build_row(query, model, record["answer"], record["chunks"], scores)
+            row = build_row(query, model, record["answer"], record["chunks"], scores, collection)
             results.append(row)
             print_scores(row)
         except Exception as e:
             print(f"  [ERROR] Judge failed: {e}")
-            results.append(build_error_row(query, model, f"Judge error: {e}"))
+            results.append(build_error_row(query, model, f"Judge error: {e}", collection))
 
     return results
 
@@ -269,11 +285,13 @@ def main() -> None:
 
         results = rejudge(answers_path)
         model = results[0]["model"] if results else model
-        save_results(results, get_csv_path(model, JUDGE_LABEL))
+        collection = results[0]["collection"] if results else CHROMA_COLLECTION
+        save_results(results, get_csv_path(model, JUDGE_LABEL, collection))
         print_summary(results, model)
         return
 
     print(f"Starting evaluation pipeline — model: {model}")
+    print(f"Collection: {CHROMA_COLLECTION}")
     print(f"Judge: {JUDGE_LABEL}")
     print(f"Queries to evaluate: {len(TEST_QUERIES)}\n")
 

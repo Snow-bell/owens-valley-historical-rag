@@ -102,3 +102,25 @@ class TestJunkFilter:
         ]
         chunks = chunk_documents(documents)
         assert [c["metadata"]["source"] for c in chunks] == ["a.pdf"]
+
+
+class TestChunkMethod:
+
+    META = {"source": "a.pdf", "source_path": "a.pdf", "tier": 2,
+            "bias_tag": "none", "bias_level": "none", "description": "d"}
+
+    def test_fixed_chunks_record_method(self):
+        from src.chunk import chunk_documents
+        chunks = chunk_documents([{"text": "The aqueduct opened in 1913.", "metadata": self.META}], method="fixed")
+        assert chunks[0]["metadata"]["chunk_method"] == "fixed"
+
+    def test_semantic_not_implemented_yet(self):
+        from src.chunk import chunk_documents
+        with pytest.raises(NotImplementedError):
+            chunk_documents([], method="semantic")
+
+    def test_unknown_method(self):
+        from src.chunk import chunk_documents
+        with pytest.raises(ValueError, match="sentences"):
+            chunk_documents([], method="sentences")
+
