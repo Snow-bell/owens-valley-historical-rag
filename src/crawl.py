@@ -1,5 +1,6 @@
 import time
 import requests
+from requests.utils import requote_uri
 from bs4 import BeautifulSoup
 from pathlib import Path
 from urllib.parse import urlparse, urljoin, unquote
@@ -77,6 +78,16 @@ def is_pack_trains_url(url: str) -> bool:
     return any(segment in path for segment in PACK_TRAIN_PATHS)
 
 
+def canonical_url(url: str) -> str:
+    # The site links some files both with spaces and with %20; treat them as one URL
+    return requote_uri(url)
+
+
+def output_name(url: str, suffix: str) -> str:
+    # Decoded path, flattened into one file name ("stories/Lakeview Mine.pdf" -> "stories__Lakeview Mine.pdf.pdf")
+    return unquote(urlparse(url).path).strip("/").replace("/", "__") + suffix
+
+
 def is_curated_duplicate(url: str) -> bool:
     path = unquote(urlparse(url).path).lower()
     return path in CURATED_DUPLICATE_PATHS
@@ -106,7 +117,7 @@ def download_pdf(url: str) -> None:
     filename = Path(urlparse(url).path).name
     
     # Flatten subfolder structure into filename
-    safe_name = urlparse(url).path.strip("/").replace("/", "__") + ".pdf"
+    safe_name = output_name(url, ".pdf")
     dest = OUTPUT_DIR / safe_name
 
     if dest.exists():
@@ -140,7 +151,7 @@ def extract_text(html: str, url: str) -> str:
 
 def save_text(text: str, url: str) -> None:
     # Skips if file already exists — safe to re-run after interruption
-    safe_name = urlparse(url).path.strip("/").replace("/", "__") + ".txt"
+    safe_name = output_name(url, ".txt")
     dest = OUTPUT_DIR / safe_name
 
     if dest.exists():
@@ -224,7 +235,7 @@ def crawl() -> None:
     print(f"\nStarting crawl — {len(queue)} pages in initial queue.\n")
 
     while queue:
-        url = queue.pop(0)
+        url = canonical_url(queue.pop(0))
 
         if url in visited:
             continue
@@ -259,7 +270,7 @@ def crawl() -> None:
         soup = BeautifulSoup(html, "html.parser")
         for a_tag in soup.find_all("a", href=True):
             href = a_tag["href"].strip()
-            full_url = urljoin(url, href)
+            full_url = canonical_url(urljoin(url, href))
             if (
                 full_url not in visited
                 and is_internal(full_url)
