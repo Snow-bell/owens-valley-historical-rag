@@ -30,7 +30,7 @@ CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
 
 # Ingestion
-MAX_CHARS = 15000   
+MAX_CHARS = 600_000   # safety cap per document; long books are trimmed with registry page ranges
 
 # Retrieval
 TOP_K = 5        

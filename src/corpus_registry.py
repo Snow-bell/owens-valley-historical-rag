@@ -1,5 +1,6 @@
 # Corpus metadata registry
 # Each entry defines the bias context for a source document.
+# Optional "pages": inclusive PDF page ranges to index, e.g. [[9, 361]].
 #
 # bias_tag options:
 #   primary_indigenous | academic | settler_bias | institutional_bias | none
@@ -169,6 +170,8 @@ CORPUS_REGISTRY = {
     },
     "story-of-inyo.pdf": {
         "tier": 3,
+        # PDF pages; drops the blank front pages, appendices and blank back pages
+        "pages": [[9, 361]],
         "bias_tag": "settler_bias",
         "bias_level": "moderate",
         "description": (
@@ -179,6 +182,9 @@ CORPUS_REGISTRY = {
     },
     "geology-and-water-resources-ov-report.pdf": {
         "tier": 3,
+        # PDF pages: abstract through previous investigations (printed pp. 1-19)
+        # and surface water through canals and water quality (printed pp. 50-57)
+        "pages": [[11, 29], [60, 67]],
         "bias_tag": "institutional_bias",
         "bias_level": "mild",
         "description": (
