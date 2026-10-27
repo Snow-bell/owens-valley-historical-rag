@@ -43,7 +43,7 @@ MAX_CHARS = 600_000   # safety cap per document; long books are trimmed with reg
 
 # Retrieval
 TOP_K = 5        
-RERANK_CANDIDATES = TOP_K * 3   # chunks fetched from Chroma for Cohere to rerank
+RERANK_CANDIDATES = 50   # chunks fetched from Chroma for Cohere to rerank; up to 100 still costs one search unit
 
 # Cohere
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
