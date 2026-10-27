@@ -26,6 +26,8 @@ STORED_METADATA = [
     "token_count",      # semantic chunks
     "n_sentences",      # semantic chunks
     "title",
+    "page_start",       # printed page numbers, books only
+    "page_end",
     "context_header",   # embedded and reranked with the chunk text
 ]
 

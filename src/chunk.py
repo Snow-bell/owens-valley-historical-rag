@@ -1,7 +1,8 @@
 import re
+from bisect import bisect_right
 import numpy as np
 import tiktoken
-from typing import Callable, List, Dict, Optional
+from typing import Callable, List, Dict, Optional, Tuple
 from src.config import (
     CHUNK_SIZE,
     CHUNK_OVERLAP,
@@ -18,6 +19,9 @@ from src.config import (
 # characters are OCR garbage or numeric tables, and aren't indexed.
 # Real prose heavy with figures sits around 0.65.
 MIN_LETTER_SHARE = 0.5
+
+# Words matched at each end of a chunk to find it in its document's text
+ANCHOR_WORDS = 8
 
 
 def letter_share(text: str) -> float:
@@ -98,6 +102,8 @@ def chunk_documents(documents: List[Dict], method: str = CHUNK_METHOD) -> List[D
     else:
         raise ValueError(f"Unknown chunk method {method!r}. Expected \"fixed\" or \"semantic\".")
 
+    add_page_ranges(chunks, documents)
+
     all_chunks = []
     dropped = 0
     for chunk in chunks:
@@ -108,6 +114,56 @@ def chunk_documents(documents: List[Dict], method: str = CHUNK_METHOD) -> List[D
     if dropped:
         print(f"  Dropped {dropped} chunks that are mostly symbols or digits.")
     return all_chunks
+
+
+def chunk_span(text: str, chunk: str, start_from: int = 0) -> Optional[Tuple[int, int]]:
+    """
+    Finds where a chunk sits in its document's text, from the first and last
+    ANCHOR_WORDS words; whitespace may differ, since semantic chunks join
+    sentences with spaces. None if the chunk can't be found.
+    """
+    words = chunk.split()
+    if not words:
+        return None
+    anchor = lambda part: re.compile(r"\s+".join(map(re.escape, part)))
+    head = anchor(words[:ANCHOR_WORDS]).search(text, start_from)
+    if not head:
+        return None
+    tail_pattern = anchor(words[-ANCHOR_WORDS:])
+    tail = (tail_pattern.search(text, head.start() + len(chunk) // 2)
+            or tail_pattern.search(text, head.start()))
+    return head.start(), tail.end() if tail else head.end()
+
+
+def add_page_ranges(chunks: List[Dict], documents: List[Dict]) -> None:
+    """
+    Gives each chunk page_start and page_end: the printed page numbers its
+    text covers. Only documents with printed page numbers (the books) get
+    them; PDF page numbers of a web printout would mean nothing to a reader.
+    """
+    by_path = {doc["metadata"]["source_path"]: doc for doc in documents}
+    start_from = {}
+    for chunk in chunks:
+        path = chunk["metadata"]["source_path"]
+        doc = by_path.get(path)
+        if not doc or not doc.get("printed_pages") or not doc.get("page_offsets"):
+            continue
+        span = chunk_span(doc["text"], chunk["text"], start_from.get(path, 0))
+        if not span:
+            continue
+        # The next chunk starts after this one's start; overlap means it can start before its end
+        start_from[path] = span[0] + 1
+        offsets = [offset for offset, _ in doc["page_offsets"]]
+        first = max(bisect_right(offsets, span[0]) - 1, 0)
+        last = max(bisect_right(offsets, span[1] - 1) - 1, 0)
+        printed = [
+            doc["printed_pages"][number]
+            for _, number in doc["page_offsets"][first: last + 1]
+            if number in doc["printed_pages"]
+        ]
+        if printed:
+            chunk["metadata"]["page_start"] = min(printed)
+            chunk["metadata"]["page_end"] = max(printed)
 
 
 # --- Semantic chunking -------------------------------------------------------

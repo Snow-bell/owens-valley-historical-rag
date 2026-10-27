@@ -12,6 +12,8 @@ PAGE_NUMBER = re.compile(r"^[\[(]?\s*\d{1,3}\s*[\])]?$")
 FURNITURE_MAX_LINES = 3       # most lines stripped from each edge of a page
 RUNNING_HEAD_MIN_PAGES = 3    # an edge line repeated on this many pages is a running head
 RUNNING_HEAD_MIN_CHARS = 10   # shorter repeats ("THE", "OF") are body text
+PRINTED_NUMBER = re.compile(r"^[\[(]?\s*(\d{1,3})\s*[\])]?$")
+PRINTED_NUMBER_NEIGHBOURS = 3  # a page number counts if a page this close agrees with it
 
 # Text cleanup. Bump CLEAN_VERSION when the rules change; chunks record it.
 # Cleanup fixes layout only: words and period spellings are never changed.
@@ -178,6 +180,41 @@ def strip_page_furniture(pages: List[str]) -> List[str]:
                     end -= 1
         stripped.append("\n".join(lines[start:end]))
     return stripped
+
+
+def printed_page_numbers(pages: List[Tuple[int, str]]) -> Dict[int, int]:
+    """
+    Maps PDF page numbers to the page numbers printed on them, read from the
+    top and bottom lines before page furniture is stripped. A number counts
+    only when a page within PRINTED_NUMBER_NEIGHBOURS agrees with it, which
+    drops OCR noise. Pages between two agreeing numbers are filled in by
+    counting; unnumbered plates that break the count are left out. Empty
+    when the document has no printed numbers.
+    """
+    found = {}
+    for number, text in pages:
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        edges = lines[:FURNITURE_MAX_LINES] + lines[-FURNITURE_MAX_LINES:]
+        found[number] = {int(m.group(1)) for line in edges if (m := PRINTED_NUMBER.match(line))}
+
+    accepted = {}
+    for number, printed in found.items():
+        for value in printed:
+            if any(
+                value + step in found.get(number + step, ())
+                for step in range(-PRINTED_NUMBER_NEIGHBOURS, PRINTED_NUMBER_NEIGHBOURS + 1)
+                if step
+            ):
+                accepted[number] = value
+                break
+
+    known = sorted(accepted)
+    for before, after in zip(known, known[1:]):
+        if accepted[after] - accepted[before] == after - before:
+            for number in range(before + 1, after):
+                if number in found:   # only indexed pages, not a gap between page ranges
+                    accepted[number] = accepted[before] + number - before
+    return accepted
 
 
 def select_pages(
@@ -359,11 +396,12 @@ def load_corpus() -> List[Dict]:
 
             if filepath.suffix == ".pdf":
                 pages = select_pages(extract_pages(filepath), page_ranges, filepath.name)
+                printed = printed_page_numbers(pages)
                 stripped = strip_page_furniture([page_text for _, page_text in pages])
                 content = [(number, page_text) for (number, _), page_text in zip(pages, stripped)]
-                extracted.append((filepath, metadata, "blocks", content))
+                extracted.append((filepath, metadata, "blocks", content, printed))
             elif filepath.suffix == ".txt":
-                extracted.append((filepath, metadata, "lines", extract_text_file(filepath)))
+                extracted.append((filepath, metadata, "lines", extract_text_file(filepath), {}))
 
         except Exception as e:
             print(f"  [ERROR] Failed to load {filepath.name}: {e}")
@@ -371,13 +409,13 @@ def load_corpus() -> List[Dict]:
 
     words, compounds = build_vocabulary([
         page_text
-        for _, _, layout, content in extracted
+        for _, _, layout, content, _ in extracted
         for page_text in ([t for _, t in content] if layout == "blocks" else [content])
     ])
 
     documents = []
 
-    for filepath, metadata, layout, content in extracted:
+    for filepath, metadata, layout, content, printed in extracted:
         try:
             page_offsets = None
             if layout == "blocks":
@@ -409,6 +447,7 @@ def load_corpus() -> List[Dict]:
                 "metadata": metadata,
                 "layout": layout,
                 "page_offsets": page_offsets,
+                "printed_pages": printed,
             })
 
         except Exception as e:

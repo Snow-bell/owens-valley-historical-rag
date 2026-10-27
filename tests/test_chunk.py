@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-from src.chunk import chunk_text, chunk_documents, with_context_header
+from src.chunk import chunk_text, chunk_documents, with_context_header, chunk_span, add_page_ranges
 
 
 SAMPLE_METADATA = {
@@ -266,3 +266,40 @@ class TestWithContextHeader:
 
     def test_chunk_without_header_is_unchanged(self):
         assert with_context_header({"text": "The aqueduct opened.", "metadata": {}}) == "The aqueduct opened."
+
+
+class TestPageRanges:
+
+    TEXT = "Page one opens here and runs on.\n\nPage two begins with the mill.\nIt burned in 1872.\n\nPage three ends the chapter."
+    OFFSETS = [[0, 9], [TEXT.index("Page two"), 10], [TEXT.index("Page three"), 11]]
+
+    def doc(self, printed):
+        return {"text": self.TEXT, "metadata": {"source_path": "book.pdf"},
+                "page_offsets": self.OFFSETS, "printed_pages": printed}
+
+    @staticmethod
+    def chunk(text):
+        return {"text": text, "metadata": {"source_path": "book.pdf"}}
+
+    def test_span_matches_across_different_whitespace(self):
+        span = chunk_span(self.TEXT, "Page two begins with the mill. It burned in 1872.")
+        assert self.TEXT[span[0]: span[1]] == "Page two begins with the mill.\nIt burned in 1872."
+
+    def test_span_not_found(self):
+        assert chunk_span(self.TEXT, "Nothing like this appears.") is None
+
+    def test_chunks_get_printed_pages(self):
+        chunks = [self.chunk("Page one opens here and runs on. Page two begins with the mill."),
+                  self.chunk("It burned in 1872. Page three ends the chapter.")]
+        add_page_ranges(chunks, [self.doc({9: 1, 10: 2, 11: 3})])
+        assert [(c["metadata"]["page_start"], c["metadata"]["page_end"]) for c in chunks] == [(1, 2), (2, 3)]
+
+    def test_unnumbered_pages_are_skipped(self):
+        chunks = [self.chunk("Page two begins with the mill. It burned in 1872. Page three ends the chapter.")]
+        add_page_ranges(chunks, [self.doc({11: 3})])
+        assert (chunks[0]["metadata"]["page_start"], chunks[0]["metadata"]["page_end"]) == (3, 3)
+
+    def test_documents_without_printed_pages_get_none(self):
+        chunks = [self.chunk("Page one opens here and runs on.")]
+        add_page_ranges(chunks, [self.doc({})])
+        assert "page_start" not in chunks[0]["metadata"]

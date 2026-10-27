@@ -58,6 +58,12 @@ The 800-token maximum matches the fixed chunker, so comparing the two tests wher
 
 Semantic chunking scored 4.65 against 4.67 for fixed chunks on the same extraction (runs B1 and B2 below), a tie within noise, while giving the generator 20% less text. It is the default because chunks that hold one topic are a better unit for what comes next: per-chunk sentiment scoring, contextual chunk headers and page citations. The fixed-chunk collection is kept for comparison.
 
+### Contextual headers and page citations
+
+Each chunk is embedded and reranked with a one-line header naming its source (title · author · year · type), so a passage that only says "he" or "the valley" still carries where it came from. The header is not stored with the chunk or shown to the generator, which gets the title in its own source label instead. Bias tags stay out of the header so they don't steer retrieval.
+
+Answers cite sources by title and printed page, e.g. (The Story of Inyo, p. 32). Printed page numbers are read from the top and bottom lines of each PDF page before they are stripped; a number counts only when a neighbouring page agrees with it, and pages between two agreeing numbers are filled in by counting. Unnumbered plates, which shift the count in the Steward ethnography, get no page rather than a wrong one. 185 of 647 documents have printed pages, including the four books and 181 scanned publications from owensvalleyhistory.com; web printouts get no page numbers, since PDF page numbers would mean nothing to a reader.
+
 ### Local vector storage
 
 ChromaDB runs locally with no external dependencies. The corpus contains sensitive historical material including indigenous primary sources. Keeping embeddings and retrieval entirely local avoids sending that content to third-party infrastructure beyond the generation API calls.
@@ -102,7 +108,8 @@ The test suite consists of 50 domain-specific queries covering Paiute life, wate
 | Judge switch | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v1 | 4.59 / 5 | Same answers as corpus cleanup, rescored |
 | Judge prompt v2 | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v2 | 4.64 / 5 | Same answers, rescored; baseline for B1 |
 | B1: new extraction | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v2 | 4.67 / 5 | Page ranges, header stripping, text cleanup; fixed 800-token chunks (3,389) |
-| B2: semantic chunks | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v2 | 4.65 / 5 | Same extraction, semantic chunks (3,847); current default |
+| B2: semantic chunks | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v2 | 4.65 / 5 | Same extraction, semantic chunks (3,847) |
+| B3: larger rerank pool | GPT-4o-mini | Cohere rerank of 50 candidates (was 15) | Gemma 3 12B, prompt v2 | 4.68 / 5 | Top 5 changed for 39 of 50 queries; bias handling 3.84, was 3.72 |
 
 Scores from different judges are not comparable. The judge switch and prompt v2 rows score the same 50 answers as the corpus cleanup row, so their differences come from the judge alone.
 

@@ -6,6 +6,7 @@ from src.ingest import (
     get_metadata, load_corpus, strip_page_furniture, select_pages, join_pages,
     build_vocabulary, hyphen_join, join_hyphenated, join_blocks, join_lines,
     clean_text, is_heading, CLEAN_VERSION, file_name_title, source_title, context_header,
+    printed_page_numbers,
 )
 from src.config import CORPUS_DIR
 
@@ -106,6 +107,7 @@ class TestLoadCorpus:
         assert steward["text"] == "Sample extracted text."
         assert steward["metadata"]["bias_tag"] == "academic"
         assert steward["page_offsets"] == [[0, 1]]
+        assert steward["printed_pages"] == {}   # no printed page numbers in the sample
         assert steward["layout"] == "blocks"
         assert steward["metadata"]["clean_version"] == CLEAN_VERSION
 
@@ -352,3 +354,35 @@ class TestSourceTitles:
         header = context_header({"title": "Payahüünadü", "author": "OVIWC", "source_type": "Paiute institutional history"})
         assert header == "Payahüünadü · OVIWC · Paiute institutional history"
         assert context_header({}) == ""
+
+
+class TestPrintedPageNumbers:
+
+    @staticmethod
+    def pages(numbers, first_pdf_page=1):
+        return [
+            (first_pdf_page + i, f"Running head\nBody text on this page.\n{n}" if n else "Plate: a photograph")
+            for i, n in enumerate(numbers)
+        ]
+
+    def test_reads_printed_numbers(self):
+        assert printed_page_numbers(self.pages([233, 234, 235], first_pdf_page=7)) == {7: 233, 8: 234, 9: 235}
+
+    def test_no_numbers_gives_empty_map(self):
+        assert printed_page_numbers([(1, "A web page."), (2, "More of it.")]) == {}
+
+    def test_lone_number_without_agreeing_neighbour_is_noise(self):
+        assert printed_page_numbers(self.pages([None, None, 320, None, None])) == {}
+
+    def test_fills_unnumbered_page_between_agreeing_numbers(self):
+        assert printed_page_numbers(self.pages([10, None, 12])) == {1: 10, 2: 11, 3: 12}
+
+    def test_unnumbered_plate_breaking_the_count_stays_out(self):
+        # A plate between printed pages 324 and 325 shifts the count by one
+        assert printed_page_numbers(self.pages([323, 324, None, 325, 326])) == {
+            1: 323, 2: 324, 4: 325, 5: 326,
+        }
+
+    def test_does_not_fill_pages_outside_the_selected_ranges(self):
+        pages = self.pages([18, 19], first_pdf_page=28) + self.pages([50, 51], first_pdf_page=60)
+        assert printed_page_numbers(pages) == {28: 18, 29: 19, 60: 50, 61: 51}

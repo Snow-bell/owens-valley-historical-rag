@@ -1,5 +1,5 @@
 import ollama as ollama_client
-from typing import List, Dict
+from typing import List, Dict, Optional
 from openai import OpenAI
 from src.config import (
     OPENAI_API_KEY,
@@ -19,13 +19,34 @@ Your role is to answer research questions using ONLY the source passages provide
 to you. Do not draw on outside knowledge. If the provided passages do not contain 
 enough information to answer the question, say so explicitly.
 
-For every claim you make, cite the source document it came from.
+For every claim you make, cite the source it came from by its title, with the
+page numbers when the passage gives them, e.g. (The Story of Inyo, p. 32).
 
 If sources contradict each other, surface the contradiction and note the bias 
 context of each source rather than resolving it arbitrarily.
 
 Be precise and historically grounded. You are helping a writer achieve period 
 accuracy — vague answers are not useful."""
+
+
+def source_title(meta: Dict) -> str:
+    # Indexes built before titles existed have only the file name
+    return meta.get("title") or meta["source"]
+
+
+def page_range(meta: Dict) -> str:
+    # Printed pages, only for documents that have them (see chunk.add_page_ranges)
+    start, end = meta.get("page_start"), meta.get("page_end")
+    if not start:
+        return ""
+    return str(start) if start == end else f"{start}–{end}"
+
+
+def page_label(ranges: List[str]) -> str:
+    if not ranges:
+        return ""
+    single = len(ranges) == 1 and "–" not in ranges[0]
+    return ("p. " if single else "pp. ") + ", ".join(ranges)
 
 
 def format_context(chunks: List[Dict]) -> str:
@@ -40,8 +61,10 @@ def format_context(chunks: List[Dict]) -> str:
                 f" | Bias: {meta['bias_tag']} ({meta['bias_level']})"
             )
 
+        pages = page_label([page_range(meta)] if page_range(meta) else [])
         header = (
-            f"[Source {i + 1}: {meta['source']}"
+            f"[Source {i + 1}: {source_title(meta)}"
+            f"{f' | {pages}' if pages else ''}"
             f" | Tier {meta['tier']}"
             f"{bias_note}]"
         )
@@ -52,6 +75,15 @@ def format_context(chunks: List[Dict]) -> str:
 
 
 def format_sources(chunks: List[Dict]) -> str:
+    # One line per source, in retrieval order, listing the pages of all its chunks
+    pages = {}
+    for chunk in chunks:
+        meta = chunk["metadata"]
+        pages_here = page_range(meta)
+        source_pages = pages.setdefault(meta["source"], [])
+        if pages_here and pages_here not in source_pages:
+            source_pages.append(pages_here)
+
     seen = set()
     sources = []
 
@@ -63,6 +95,10 @@ def format_sources(chunks: List[Dict]) -> str:
             continue
         seen.add(source)
 
+        name = source_title(meta)
+        if pages[source]:
+            name += ", " + page_label(pages[source])
+
         bias_note = ""
         if meta["bias_level"] != "none":
             bias_note = (
@@ -73,7 +109,7 @@ def format_sources(chunks: List[Dict]) -> str:
         description = meta.get("description", "")
 
         sources.append(
-            f"  • {source} (Tier {meta['tier']}){bias_note}\n"
+            f"  • {name} (Tier {meta['tier']}){bias_note}\n"
             f"    {description}"
         )
 
