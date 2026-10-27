@@ -1,6 +1,9 @@
 # Corpus metadata registry
 # Each entry defines the bias context for a source document.
 # Optional "pages": inclusive PDF page ranges to index, e.g. [[9, 361]].
+# Optional "title", "author", "year", "source_type": the contextual header
+# embedded and reranked with each chunk. Files without a title get one from
+# their file name or first line (see ingest.source_title).
 #
 # bias_tag options:
 #   primary_indigenous | academic | settler_bias | institutional_bias | none
@@ -11,6 +14,10 @@
 CORPUS_REGISTRY = {
     # --- Tier 1: Primary Indigenous Sources ---
     "ethnography-of-owens-valley-paiute.pdf": {
+        "title": "Ethnography of the Owens Valley Paiute",
+        "author": "Julian H. Steward",
+        "year": "1933",
+        "source_type": "ethnography",
         "tier": 1,
         "bias_tag": "academic",
         "bias_level": "mild",
@@ -21,15 +28,23 @@ CORPUS_REGISTRY = {
         ),
     },
     "owens-valley-paiute-autobiographies.pdf": {
+        "title": "Panatübiji', an Owens Valley Paiute",
+        "author": "Julian H. Steward",
+        "year": "1938",
+        "source_type": "Paiute life story",
         "tier": 1,
         "bias_tag": "academic",
         "bias_level": "mild",
         "description": (
-            "First-person Paiute autobiographies collected by Julian Steward. "
-            "Primary indigenous voices but mediated by an outside academic collector."
+            "Life story of Panatübiji', a Paiute man who died in 1911, collected by "
+            "Julian Steward. Primary indigenous voice but mediated by an outside "
+            "academic collector."
         ),
     },
     "ov-native-water-story.pdf": {
+        "title": "Payahüünadü Water Story: Wading Through the Past",
+        "author": "Teri Red Owl, Owens Valley Indian Water Commission",
+        "source_type": "Paiute water history",
         "tier": 1,
         "bias_tag": "primary_indigenous",
         "bias_level": "none",
@@ -40,6 +55,9 @@ CORPUS_REGISTRY = {
         ),
     },
     "payahuunadu-oviwc.pdf": {
+        "title": "Payahüünadü",
+        "author": "Owens Valley Indian Water Commission",
+        "source_type": "Paiute institutional history",
         "tier": 1,
         "bias_tag": "primary_indigenous",
         "bias_level": "none",
@@ -49,6 +67,9 @@ CORPUS_REGISTRY = {
         ),
     },
     "water-land-history-oviwc.pdf": {
+        "title": "Water & Land History",
+        "author": "Owens Valley Indian Water Commission",
+        "source_type": "Paiute institutional history",
         "tier": 1,
         "bias_tag": "primary_indigenous",
         "bias_level": "none",
@@ -60,6 +81,9 @@ CORPUS_REGISTRY = {
 
     # --- Tier 2: Period Primary and Local Sources ---
     "timeline-genocide-incidents-ov.pdf": {
+        "title": "Timeline of Genocide Incidents in the Owens Valley Region",
+        "author": "California Native American Heritage Commission",
+        "source_type": "historical timeline",
         "tier": 2,
         "bias_tag": "none",
         "bias_level": "none",
@@ -68,6 +92,10 @@ CORPUS_REGISTRY = {
         ),
     },
     "Ghosts-of-the-Sagebrush.pdf": {
+        "title": "Ghosts of the Sagebrush: Historical Structures in the Mono Basin",
+        "author": "Malcolm Mosher, Jr.",
+        "year": "2016",
+        "source_type": "photo history",
         "tier": 2,
         "bias_tag": "none",
         "bias_level": "none",
@@ -78,6 +106,9 @@ CORPUS_REGISTRY = {
         ),
     },
     "fauna-flora-ov.pdf": {
+        "title": "Fauna and Flora of the Owens Valley: Indigenous, Endemic, Endangered",
+        "author": "Gigi de Jong",
+        "source_type": "natural history article",
         "tier": 2,
         "bias_tag": "none",
         "bias_level": "none",
@@ -89,6 +120,10 @@ CORPUS_REGISTRY = {
 
     # --- Tier 2: Chronicling America Newspapers ---
     "chronicling-america/indorse-owens-project-dec-25-1906.pdf": {
+        "title": "\"Indorse Owens Project\"",
+        "author": "Los Angeles Herald",
+        "year": "25 Dec 1906",
+        "source_type": "newspaper",
         "tier": 2,
         "bias_tag": "institutional_bias",
         "bias_level": "severe",
@@ -98,6 +133,10 @@ CORPUS_REGISTRY = {
         ),
     },
     "chronicling-america/ov-aqueduct-city-growth-april-1-1906.pdf": {
+        "title": "\"Owens River Will Cause Wonderful Growth of City\"",
+        "author": "Los Angeles Herald",
+        "year": "1 Apr 1906",
+        "source_type": "newspaper",
         "tier": 2,
         "bias_tag": "institutional_bias",
         "bias_level": "severe",
@@ -107,6 +146,10 @@ CORPUS_REGISTRY = {
         ),
     },
     "chronicling-america/la-faces-water-crisis-july-31-1905.pdf": {
+        "title": "\"Los Angeles Faces Crisis in Water Supply\"",
+        "author": "Los Angeles Herald",
+        "year": "31 Jul 1905",
+        "source_type": "newspaper",
         "tier": 2,
         "bias_tag": "institutional_bias",
         "bias_level": "severe",
@@ -116,6 +159,10 @@ CORPUS_REGISTRY = {
         ),
     },
     "chronicling-america/stealing-owens-river-supply-july-30-1905.pdf": {
+        "title": "\"Owens River Base of Supply\"",
+        "author": "Los Angeles Herald",
+        "year": "30 Jul 1905",
+        "source_type": "newspaper",
         "tier": 2,
         "bias_tag": "institutional_bias",
         "bias_level": "severe",
@@ -128,6 +175,7 @@ CORPUS_REGISTRY = {
     # --- Tier 2: Women's Club Biographies ---
     # Applied uniformly across all biographies in this subfolder
     "__womens_club_default__": {
+        "source_type": "California Federation of Women's Clubs biography",
         "tier": 2,
         "bias_tag": "none",
         "bias_level": "none",
@@ -139,6 +187,8 @@ CORPUS_REGISTRY = {
     
     # --- Tier 2: Owens Valley History Documents ---
     "__owensvalleyhistory_default__": {
+        "author": "owensvalleyhistory.com",
+        "source_type": "local history site",
         "tier": 2,
         "bias_tag": "none",
         "bias_level": "none",
@@ -151,6 +201,9 @@ CORPUS_REGISTRY = {
 
     # --- Tier 3: Secondary and Reference Sources ---
     "california-geography-ch5-water.pdf": {
+        "title": "California Geography, ch. 5: Water as a Resource and as a Conflict",
+        "author": "Jeremy Patrich",
+        "source_type": "geography textbook",
         "tier": 3,
         "bias_tag": "academic",
         "bias_level": "none",
@@ -160,6 +213,9 @@ CORPUS_REGISTRY = {
         ),
     },
     "california-geography-ch12-great-basin.pdf": {
+        "title": "California Geography, ch. 12: The Great Basin",
+        "author": "Jeremy Patrich",
+        "source_type": "geography textbook",
         "tier": 3,
         "bias_tag": "academic",
         "bias_level": "none",
@@ -169,6 +225,10 @@ CORPUS_REGISTRY = {
         ),
     },
     "story-of-inyo.pdf": {
+        "title": "The Story of Inyo",
+        "author": "W. A. Chalfant",
+        "year": "1922",
+        "source_type": "local pioneer history book",
         "tier": 3,
         # PDF pages; drops the blank front pages, appendices and blank back pages
         "pages": [[9, 361]],
@@ -181,6 +241,10 @@ CORPUS_REGISTRY = {
         ),
     },
     "geology-and-water-resources-ov-report.pdf": {
+        "title": "Geology and Water Resources of Owens Valley, California",
+        "author": "Hollett, Danskin, McCaffrey and Walti (USGS)",
+        "year": "1989",
+        "source_type": "USGS report",
         "tier": 3,
         # PDF pages: abstract through previous investigations (printed pp. 1-19)
         # and surface water through canals and water quality (printed pp. 50-57)

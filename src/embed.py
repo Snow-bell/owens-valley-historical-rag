@@ -2,6 +2,7 @@ import chromadb
 from chromadb.config import Settings
 from typing import List, Dict
 from openai import OpenAI
+from src.chunk import with_context_header
 from src.config import (
     OPENAI_API_KEY,
     EMBEDDING_MODEL,
@@ -24,6 +25,8 @@ STORED_METADATA = [
     "clean_version",
     "token_count",      # semantic chunks
     "n_sentences",      # semantic chunks
+    "title",
+    "context_header",   # embedded and reranked with the chunk text
 ]
 
 
@@ -64,10 +67,10 @@ def chunk_id(chunk: Dict) -> str:
 
 def embed_chunks(chunks: List[Dict]) -> List[List[float]]:
     """
-    Send chunk texts to OpenAI embeddings API.
+    Send chunk texts, each with its source header, to OpenAI embeddings API.
     Returns list of embedding vectors.
     """
-    texts = [chunk["text"] for chunk in chunks]
+    texts = [with_context_header(chunk) for chunk in chunks]
 
     response = client.embeddings.create(
         model=EMBEDDING_MODEL,

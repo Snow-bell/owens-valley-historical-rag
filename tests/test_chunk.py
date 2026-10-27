@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-from src.chunk import chunk_text, chunk_documents
+from src.chunk import chunk_text, chunk_documents, with_context_header
 
 
 SAMPLE_METADATA = {
@@ -256,3 +256,13 @@ class TestChunkSemantic:
     def test_empty_corpus(self):
         assert chunk_semantic([], embed=topic_embedder) == []
 
+
+
+class TestWithContextHeader:
+
+    def test_header_goes_above_text(self):
+        chunk = {"text": "The aqueduct opened.", "metadata": {"context_header": "The Story of Inyo · W. A. Chalfant"}}
+        assert with_context_header(chunk) == "The Story of Inyo · W. A. Chalfant\n\nThe aqueduct opened."
+
+    def test_chunk_without_header_is_unchanged(self):
+        assert with_context_header({"text": "The aqueduct opened.", "metadata": {}}) == "The aqueduct opened."

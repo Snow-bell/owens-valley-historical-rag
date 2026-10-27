@@ -47,6 +47,23 @@ class TestStoreChunks:
         assert metadata["clean_version"] == 1
         assert "page_offsets" not in metadata    # lists can't be Chroma metadata
 
+    @patch("src.embed.get_chroma_collection")
+    def test_stores_plain_text_and_header(self, mock_collection):
+        store_chunks([make_chunk("a/x.pdf", context_header="Steward · 1933")], [[0.1]])
+        kwargs = mock_collection.return_value.upsert.call_args.kwargs
+        assert kwargs["documents"] == ["Pine nuts were gathered in autumn."]
+        assert kwargs["metadatas"][0]["context_header"] == "Steward · 1933"
+
+
+class TestEmbedChunks:
+
+    @patch("src.embed.client")
+    def test_embeds_header_with_text(self, mock_client):
+        mock_client.embeddings.create.return_value.data = []
+        embed.embed_chunks([make_chunk("a/x.pdf", context_header="Steward · 1933"), make_chunk("a/y.pdf")])
+        texts = mock_client.embeddings.create.call_args.kwargs["input"]
+        assert texts == ["Steward · 1933\n\nPine nuts were gathered in autumn.", "Pine nuts were gathered in autumn."]
+
 
 class TestResetCollection:
 

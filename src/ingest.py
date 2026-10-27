@@ -27,6 +27,13 @@ ESCAPED_CODEPOINT = re.compile(r"\\u[0-9a-fA-F]{4}")   # OCR layers that store "
 OCR_SYMBOLS = re.compile(r"(?<!\S)[■□▪▫●○◆◇•¦]+(?!\S)")
 SENTENCE_END = re.compile(r"[.!?:;\"'”’)\]]$")
 
+# Contextual headers: title · author · year · type, embedded and reranked with each chunk
+FILE_EXTENSIONS = re.compile(r"(\.(pdf|html|txt))+$", re.IGNORECASE)
+FILE_NAME_NOISE = re.compile(r"\b(reduced|compressed|size)\b", re.IGNORECASE)
+FILE_NAME_DATE = re.compile(r"(\d{2})(\d{2})(\d{2})$")   # Progress Citizen issues, MMDDYY
+MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+HEADER_FIELDS = ["title", "author", "year", "source_type"]
+
 
 def get_metadata(filepath: Path) -> Dict:
     """
@@ -63,6 +70,46 @@ def get_metadata(filepath: Path) -> Dict:
     metadata["source"] = filepath.name
     metadata["source_path"] = relative_key
     return metadata
+
+
+def file_name_title(filepath: Path) -> Tuple[str, Optional[str]]:
+    """
+    A readable title from a file name, and an issue date if the name ends in
+    one: "progress_citizen__keeler_061148.pdf.pdf" gives
+    ("Progress Citizen: Keeler", "11 Jun 1948").
+    """
+    section, _, name = FILE_EXTENSIONS.sub("", filepath.name).partition("__")
+    if not name:
+        section, name = "", section
+    words = " ".join(FILE_NAME_NOISE.sub(" ", name.replace("_", " ").replace("-", " ")).split())
+
+    date = None
+    match = FILE_NAME_DATE.search(words.replace(" ", ""))
+    if section == "progress_citizen" and match:
+        month, day, year = (int(g) for g in match.groups())
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            date = f"{day} {MONTHS[month - 1]} 19{year:02d}"
+            words = words[: -len(match.group(0))].strip()
+
+    title = words.title() if words.islower() else words
+    if section == "progress_citizen":
+        title = f"Progress Citizen: {title}"
+    return title, date
+
+
+def source_title(filepath: Path, first_line: str = "") -> Tuple[str, Optional[str]]:
+    """
+    Title and date for a file the registry doesn't name. Crawled HTML pages
+    start with their page title; everything else falls back to the file name.
+    """
+    if filepath.suffix == ".txt" and first_line.strip():
+        return " ".join(first_line.split()), None
+    return file_name_title(filepath)
+
+
+def context_header(metadata: Dict) -> str:
+    """The source line prepended to a chunk for embedding and reranking."""
+    return " · ".join(str(metadata[f]) for f in HEADER_FIELDS if metadata.get(f))
 
 
 def extract_pages(filepath: Path) -> List[str]:
@@ -350,6 +397,12 @@ def load_corpus() -> List[Dict]:
                 print(f"  [WARNING] No text extracted from: {filepath.name}")
                 continue
 
+            if not metadata.get("title"):
+                first_line = content.strip().split("\n", 1)[0] if layout == "lines" else ""
+                metadata["title"], date = source_title(filepath, first_line)
+                if date and not metadata.get("year"):
+                    metadata["year"] = date
+            metadata["context_header"] = context_header(metadata)
             metadata["clean_version"] = CLEAN_VERSION
             documents.append({
                 "text": text,

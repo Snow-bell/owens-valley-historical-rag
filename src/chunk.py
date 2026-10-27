@@ -27,6 +27,16 @@ def letter_share(text: str) -> float:
     return sum(c.isalpha() for c in characters) / len(characters)
 
 
+def with_context_header(chunk: Dict) -> str:
+    """
+    Chunk text with its source header (title · author · year · type) on top,
+    for embedding and reranking. Stored chunks and the generator's context
+    keep the plain text. Chunks indexed before headers existed have none.
+    """
+    header = chunk["metadata"].get("context_header")
+    return f"{header}\n\n{chunk['text']}" if header else chunk["text"]
+
+
 def get_encoder():
     return tiktoken.get_encoding("cl100k_base")
 

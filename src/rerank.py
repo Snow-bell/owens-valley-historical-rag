@@ -2,6 +2,7 @@ import time
 import cohere
 from cohere.errors import TooManyRequestsError
 from typing import List, Dict
+from src.chunk import with_context_header
 from src.config import (
     COHERE_API_KEY,
     RERANK_MODEL,
@@ -38,7 +39,7 @@ def rerank(query: str, chunks: List[Dict], top_n: int = RERANK_TOP_N) -> List[Di
     if not chunks:
         return []
 
-    documents = [chunk["text"] for chunk in chunks]
+    documents = [with_context_header(chunk) for chunk in chunks]
 
     for attempt in range(RATE_LIMIT_RETRIES + 1):
         wait_for_rate_limit()

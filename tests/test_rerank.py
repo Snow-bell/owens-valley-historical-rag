@@ -41,6 +41,16 @@ class TestRerank:
         assert result[0]["relevance_score"] == 0.9123
 
     @patch("src.rerank.client")
+    def test_sends_header_with_text_and_returns_plain_chunks(self, mock_client):
+        chunk = {"text": "The aqueduct opened in 1913.", "metadata": {"source": "b.pdf", "context_header": "LA Herald · 1906"}}
+        mock_client.rerank.return_value.results = [cohere_result(0, 0.5)]
+
+        result = rerank("q", [chunk], top_n=1)
+
+        assert mock_client.rerank.call_args.kwargs["documents"] == ["LA Herald · 1906\n\nThe aqueduct opened in 1913."]
+        assert result[0]["text"] == "The aqueduct opened in 1913."
+
+    @patch("src.rerank.client")
     def test_empty_chunks_skip_cohere(self, mock_client):
         assert rerank("q", []) == []
         mock_client.rerank.assert_not_called()

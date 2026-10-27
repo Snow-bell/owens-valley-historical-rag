@@ -5,7 +5,7 @@ from collections import Counter
 from src.ingest import (
     get_metadata, load_corpus, strip_page_furniture, select_pages, join_pages,
     build_vocabulary, hyphen_join, join_hyphenated, join_blocks, join_lines,
-    clean_text, is_heading, CLEAN_VERSION,
+    clean_text, is_heading, CLEAN_VERSION, file_name_title, source_title, context_header,
 )
 from src.config import CORPUS_DIR
 
@@ -128,6 +128,18 @@ class TestLoadCorpus:
         assert "Page 8 text" not in inyo["text"]
         assert [n for _, n in inyo["page_offsets"]] == [9, 10, 11, 12]
         assert "pages" not in inyo["metadata"]
+
+    def test_documents_get_context_headers(self, corpus_dir, mock_fitz):
+        documents = {d["metadata"]["source"]: d["metadata"] for d in load_corpus()}
+        # Registry title, author, year and type
+        assert documents["ethnography-of-owens-valley-paiute.pdf"]["context_header"] == (
+            "Ethnography of the Owens Valley Paiute · Julian H. Steward · 1933 · ethnography"
+        )
+        # Crawled page: its first line, plus the site default author and type
+        assert documents["bishop.txt"]["title"] == "Bishop Creek mill, 1890."
+        assert documents["bishop.txt"]["context_header"] == (
+            "Bishop Creek mill, 1890. · owensvalleyhistory.com · local history site"
+        )
 
     def test_txt_files_have_no_page_offsets(self, corpus_dir, mock_fitz):
         documents = load_corpus()
@@ -304,3 +316,39 @@ class TestCleanText:
     def test_never_changes_words(self):
         text = "The Piute band camped near Bishop Creek in 1863."
         assert self.clean(text) == text
+
+
+class TestSourceTitles:
+
+    def test_file_name_becomes_title(self):
+        assert file_name_title(Path("stories__dead_mining_camps.pdf.pdf")) == ("Dead Mining Camps", None)
+        assert file_name_title(Path("Adella-Schloss.pdf")) == ("Adella Schloss", None)
+
+    def test_drops_file_size_notes_and_keeps_capitals(self):
+        assert file_name_title(Path("stories__Love Bug_REDUCED.pdf.pdf")) == ("Love Bug", None)
+
+    def test_progress_citizen_issue_date(self):
+        assert file_name_title(Path("progress_citizen__keeler_061148.pdf.pdf")) == (
+            "Progress Citizen: Keeler", "11 Jun 1948"
+        )
+        assert file_name_title(Path("progress_citizen__independence__022048.pdf.pdf")) == (
+            "Progress Citizen: Independence", "20 Feb 1948"
+        )
+
+    def test_progress_citizen_without_date(self):
+        assert file_name_title(Path("progress_citizen__this_is_inyo.pdf.pdf")) == (
+            "Progress Citizen: This Is Inyo", None
+        )
+
+    def test_crawled_page_uses_first_line(self):
+        assert source_title(Path("bishop_mule_days__page101.html.txt"), "Bishop  Mule Days ") == (
+            "Bishop Mule Days", None
+        )
+
+    def test_crawled_page_without_first_line_uses_file_name(self):
+        assert source_title(Path("cartago__page118.html.txt"), "") == ("Page118", None)
+
+    def test_header_skips_missing_fields(self):
+        header = context_header({"title": "Payahüünadü", "author": "OVIWC", "source_type": "Paiute institutional history"})
+        assert header == "Payahüünadü · OVIWC · Paiute institutional history"
+        assert context_header({}) == ""
