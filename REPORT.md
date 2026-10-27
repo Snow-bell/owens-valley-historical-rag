@@ -50,6 +50,14 @@ Core corpus documents were selected and tiered manually rather than scraped broa
 
 Initial retrieval uses ChromaDB cosine similarity to find candidate chunks. A Cohere cross-encoder then reranks those candidates by relevance to the specific query before passing to generation. Cross-encoders evaluate the query and chunk together rather than independently, producing more accurate relevance scores than embedding similarity alone. This replaced an earlier source diversity filter and improved overall scores from 4.59 to 4.82.
 
+### Semantic chunking
+
+Documents are split at topic changes instead of every 800 tokens. Each sentence is embedded locally with MiniLM (all-MiniLM-L6-v2), together with one sentence on either side, and a chunk breaks where the distance between neighbouring sentences is a local peak above the 95th percentile of all such distances in the corpus. One threshold for the whole corpus keeps break density tied to how much the text actually shifts, so a short newspaper article on one subject stays whole while a book splits at its chapter and section changes. Pieces under 300 tokens merge into the previous chunk, pieces over 800 tokens split at their largest internal distance, and each chunk repeats the previous chunk's last sentence for continuity.
+
+The 800-token maximum matches the fixed chunker, so comparing the two tests where chunks break rather than how much text the generator sees. Semantic chunks still come out smaller (mean about 560 tokens against 710) because they end at topic changes: with a 100-token minimum the mean was 412 tokens and the generator would have seen 58% of the fixed chunker's context, so the minimum was raised to 300, giving about 80%.
+
+Semantic chunking scored 4.65 against 4.67 for fixed chunks on the same extraction (runs B1 and B2 below), a tie within noise, while giving the generator 20% less text. It is the default because chunks that hold one topic are a better unit for what comes next: per-chunk sentiment scoring, contextual chunk headers and page citations. The fixed-chunk collection is kept for comparison.
+
 ### Local vector storage
 
 ChromaDB runs locally with no external dependencies. The corpus contains sensitive historical material including indigenous primary sources. Keeping embeddings and retrieval entirely local avoids sending that content to third-party infrastructure beyond the generation API calls.
@@ -92,9 +100,13 @@ The test suite consists of 50 domain-specific queries covering Paiute life, wate
 | Model comparison | Mistral 7B | Cohere rerank | GPT-4o-mini | 3.50 / 5 | Local inference via Ollama |
 | Corpus cleanup | GPT-4o-mini | Cohere rerank | GPT-4o-mini | 4.75 / 5 | Seven junk crawl files removed; new answers |
 | Judge switch | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v1 | 4.59 / 5 | Same answers as corpus cleanup, rescored |
-| Judge prompt v2 | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v2 | 4.64 / 5 | Same answers, rescored; current baseline |
+| Judge prompt v2 | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v2 | 4.64 / 5 | Same answers, rescored; baseline for B1 |
+| B1: new extraction | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v2 | 4.67 / 5 | Page ranges, header stripping, text cleanup; fixed 800-token chunks (3,389) |
+| B2: semantic chunks | GPT-4o-mini | Cohere rerank | Gemma 3 12B, prompt v2 | 4.65 / 5 | Same extraction, semantic chunks (3,847); current default |
 
-Scores from different judges are not comparable. The last three rows score the same 50 answers, so their differences come from the judge alone.
+Scores from different judges are not comparable. The judge switch and prompt v2 rows score the same 50 answers as the corpus cleanup row, so their differences come from the judge alone.
+
+B2 against B1 isolates the chunking change. Only 15 of 50 answers changed score on any dimension, in both directions (specificity 3 up and 5 down, bias handling 5 up and 8 down), and alignment and faithfulness stayed at 5.00 in both runs. The 1-5 judge can't separate the two chunkers; it does show semantic chunks lose nothing while the generator reads about 13,500 characters of context per answer instead of 16,800.
 
 ### Judge comparison
 

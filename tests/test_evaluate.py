@@ -54,7 +54,7 @@ class TestRunEvaluation:
         tmp_path, _ = eval_env
         evaluate.run_evaluation("openai")
 
-        records = evaluate.load_answers(tmp_path / "eval_answers_openai.jsonl")
+        records = evaluate.load_answers(evaluate.get_answers_path("openai"))
         assert len(records) == len(QUERIES)
         assert records[0]["answer"] == LONG_ANSWER
         assert len(records[0]["answer"]) > evaluate.ANSWER_PREVIEW_LENGTH
@@ -65,7 +65,7 @@ class TestRunEvaluation:
         with patch.object(evaluate, "retrieve", side_effect=Exception("Chroma down")):
             results = evaluate.run_evaluation("openai")
 
-        records = evaluate.load_answers(tmp_path / "eval_answers_openai.jsonl")
+        records = evaluate.load_answers(evaluate.get_answers_path("openai"))
         assert records[0]["error"] == "Chroma down"
         assert "answer" not in records[0]
         assert results[0]["contextual_alignment"] is None
@@ -80,7 +80,7 @@ class TestRejudge:
 
         with patch.object(evaluate, "retrieve") as mock_retrieve, \
              patch.object(evaluate, "generate") as mock_generate:
-            results = evaluate.rejudge(tmp_path / "eval_answers_openai.jsonl")
+            results = evaluate.rejudge(evaluate.get_answers_path("openai"))
 
         mock_retrieve.assert_not_called()
         mock_generate.assert_not_called()
@@ -106,19 +106,15 @@ class TestRejudge:
 
 class TestCsvPath:
 
-    def test_default_path_unchanged(self, tmp_path):
-        with patch.object(evaluate, "OUTPUTS_DIR", tmp_path):
-            assert evaluate.get_csv_path("openai").name == "eval_results_openai.csv"
-
     def test_rejudged_path_includes_judge(self, tmp_path):
         with patch.object(evaluate, "OUTPUTS_DIR", tmp_path):
-            path = evaluate.get_csv_path("openai", "gemma3:12b")
+            path = evaluate.get_csv_path("openai", "gemma3:12b", evaluate.DEFAULT_COLLECTION)
             assert path.name == "eval_results_openai__judge_gemma3_12b.csv"
 
     def test_prompt_versions_get_separate_files(self, tmp_path):
         with patch.object(evaluate, "OUTPUTS_DIR", tmp_path):
-            v1 = evaluate.get_csv_path("openai", "gemma3:12b")
-            v2 = evaluate.get_csv_path("openai", "gemma3:12b@v2")
+            v1 = evaluate.get_csv_path("openai", "gemma3:12b", evaluate.DEFAULT_COLLECTION)
+            v2 = evaluate.get_csv_path("openai", "gemma3:12b@v2", evaluate.DEFAULT_COLLECTION)
             assert v1 != v2
             assert v2.name == "eval_results_openai__judge_gemma3_12b@v2.csv"
 
@@ -129,7 +125,7 @@ class TestCollections:
         tmp_path, _ = eval_env
         results = evaluate.run_evaluation("openai")
         assert all(r["collection"] == evaluate.CHROMA_COLLECTION for r in results)
-        record = json.loads((tmp_path / "eval_answers_openai.jsonl").read_text().splitlines()[0])
+        record = json.loads(evaluate.get_answers_path("openai").read_text().splitlines()[0])
         assert record["collection"] == evaluate.CHROMA_COLLECTION
 
     def test_default_collection_keeps_original_names(self, tmp_path):

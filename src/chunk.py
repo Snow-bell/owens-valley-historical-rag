@@ -150,7 +150,7 @@ def embed_sentences(texts: List[str]) -> np.ndarray:
         from sentence_transformers import SentenceTransformer
         _sentence_model = SentenceTransformer(SENTENCE_MODEL, device="cpu")
     return _sentence_model.encode(
-        texts, batch_size=128, normalize_embeddings=True, show_progress_bar=False
+        texts, batch_size=128, normalize_embeddings=True, show_progress_bar=len(texts) > 1000
     )
 
 

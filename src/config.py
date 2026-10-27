@@ -26,7 +26,7 @@ JUDGE_MODEL = "gemma3:12b" # "gpt-4o-mini" or "gemma3:12b"
 JUDGE_NUM_CTX = 16384      # Ollama context window; its default silently truncates the judge prompt
 
 # Chunking
-CHUNK_METHOD = "fixed"   # "fixed" (800-token windows) or "semantic"
+CHUNK_METHOD = "semantic"   # "fixed" (800-token windows) or "semantic"
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
 
@@ -56,7 +56,7 @@ CHROMA_COLLECTIONS = {
     "fixed": "owens_valley",
     "semantic": "owens_valley_semantic",
 }
-DEFAULT_COLLECTION = CHROMA_COLLECTIONS["fixed"]
+DEFAULT_COLLECTION = CHROMA_COLLECTIONS["fixed"]   # runs before collections existed used this one; its output files keep unsuffixed names
 CHROMA_COLLECTION = CHROMA_COLLECTIONS[CHUNK_METHOD]
 
 # Regression
