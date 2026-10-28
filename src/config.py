@@ -38,6 +38,13 @@ SEMANTIC_MIN_TOKENS = 300        # smaller pieces merge into a neighbour; 300 br
 SEMANTIC_MAX_TOKENS = CHUNK_SIZE # same cap as fixed chunks, so B2 against B1 tests only where chunks break
 SEMANTIC_OVERLAP_MAX_TOKENS = 100  # the repeated last sentence is skipped if longer
 
+# Stance labels: each chunk's stance toward the main parties, made once at index time
+STANCE_LABELS = True                # False indexes without labels
+STANCE_MODEL = "gpt-4.1-mini"       # near GPT-4o on the 27 Oct pilot at about a sixth of the cost
+STANCE_PROMPT_VERSION = 1           # bump when the prompt or schema changes; relabels every chunk
+STANCE_CACHE = BASE_DIR / "data" / "stance_cache.json"   # labels keyed by chunk text, reused across reindexes
+STANCE_WORKERS = 8                  # parallel API calls
+
 # Ingestion
 MAX_CHARS = 600_000   # safety cap per document; long books are trimmed with registry page ranges
 

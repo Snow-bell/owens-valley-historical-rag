@@ -92,6 +92,8 @@ python main.py --reindex
 
 Semantic indexing embeds every sentence locally with MiniLM before the OpenAI embeddings, which adds about 10 minutes on CPU for the full corpus.
 
+Indexing also labels each chunk's stance toward the Paiute, Los Angeles and the settlers, with loaded terms and a short framing, using `STANCE_MODEL` (GPT-4.1-mini). The first run labels every chunk (about $2 for the full corpus); labels are cached in `data/stance_cache.json` by chunk text, so later reindexes only label chunks whose text changed. Set `STANCE_LABELS = False` in `src/config.py` to index without them.
+
 ### Query the corpus
 
 Once indexed the tool enters an interactive query loop:

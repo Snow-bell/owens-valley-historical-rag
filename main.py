@@ -5,9 +5,10 @@ from rich.text import Text
 from src.ingest import load_corpus
 from src.chunk import chunk_documents
 from src.embed import embed_and_store, get_chroma_collection, reset_collection
-from src.config import CHUNK_METHOD, CHROMA_COLLECTION
+from src.config import CHUNK_METHOD, CHROMA_COLLECTION, STANCE_LABELS
 from src.retrieve import retrieve
 from src.generate import generate
+from src.stance import label_chunks
 
 console = Console()
 
@@ -24,7 +25,9 @@ def index_corpus() -> None:
     )
     documents = load_corpus()
     chunks = chunk_documents(documents)
-    # Clear only after chunking succeeds, so a failed run leaves the old index in place
+    if STANCE_LABELS:
+        label_chunks(chunks)
+    # Clear only after chunking and labeling succeed, so a failed run leaves the old index in place
     reset_collection()
     embed_and_store(chunks)
     console.print("[bold green]Corpus indexed successfully.[/bold green]\n")

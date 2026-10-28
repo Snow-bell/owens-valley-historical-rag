@@ -29,6 +29,12 @@ STORED_METADATA = [
     "page_start",       # printed page numbers, books only
     "page_end",
     "context_header",   # embedded and reranked with the chunk text
+    "stance_paiute",    # stance labels (src/stance.py)
+    "stance_los_angeles",
+    "stance_settlers",
+    "loaded_terms",
+    "framing",
+    "stance_version",
 ]
 
 
