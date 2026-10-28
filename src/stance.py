@@ -85,6 +85,20 @@ def period_terms(text: str) -> List[str]:
     return found
 
 
+def letters(text: str) -> str:
+    return re.sub(r"[^a-z]", "", text.lower())
+
+
+def in_text(term: str, text: str) -> bool:
+    """
+    Whether a loaded term appears in the passage, ignoring case, spacing and
+    punctuation, so OCR spacing and line-break hyphens still match. The model
+    sometimes returns the prompt's own examples ("wonderful growth") for
+    passages that don't contain them.
+    """
+    return bool(letters(term)) and letters(term) in letters(text)
+
+
 def model_input(chunk: Dict) -> str:
     source = chunk["metadata"].get("context_header") or chunk["metadata"]["source"]
     return f"Source: {source}\n\nPassage:\n{chunk['text']}"
@@ -123,12 +137,13 @@ def label_chunk(chunk: Dict) -> Dict:
 
 def stance_metadata(label: Dict, text: str) -> Dict:
     """
-    Flat Chroma fields from a label. Period slurs found in the text are added
-    to the model's loaded terms.
+    Flat Chroma fields from a label. Loaded terms that don't appear in the
+    text are dropped; period slurs found in the text are added.
     """
-    terms = label["loaded_terms"][:MAX_LOADED_TERMS]
+    terms = [term for term in label["loaded_terms"] if in_text(term, text)][:MAX_LOADED_TERMS]
     for term in period_terms(text):
-        if term.lower() not in (t.lower() for t in terms):
+        # Skip "red men" when the model already gave "renegade red men"
+        if not any(in_text(term, t) for t in terms):
             terms.append(term)
     return {
         **{f"stance_{party}": label[party] for party in PARTIES},

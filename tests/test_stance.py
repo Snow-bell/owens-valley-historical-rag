@@ -53,7 +53,7 @@ class TestPeriodTerms:
 class TestStanceMetadata:
 
     def test_flat_fields(self):
-        metadata = stance_metadata(LABEL, "No slurs here.")
+        metadata = stance_metadata(LABEL, "The renegade red men were marauding.")
         assert metadata == {
             "stance_paiute": "hostile",
             "stance_los_angeles": "not_mentioned",
@@ -63,6 +63,19 @@ class TestStanceMetadata:
             "stance_version": stance.STANCE_LABEL,
         }
 
+    def test_terms_not_in_text_are_dropped(self):
+        label = {**LABEL, "loaded_terms": ["wonderful growth", "renegade red men"]}
+        assert stance_metadata(label, "The renegade red men gathered.")["loaded_terms"] == "renegade red men"
+
+    def test_period_term_inside_a_model_term_is_not_repeated(self):
+        label = {**LABEL, "loaded_terms": ["renegade red men"]}
+        assert stance_metadata(label, "The renegade red men gathered.")["loaded_terms"] == "renegade red men"
+
+    def test_terms_match_across_ocr_spacing_and_hyphens(self):
+        label = {**LABEL, "loaded_terms": ["renegade red men", "marauding"]}
+        text = "The RENEGADE RED-\nMEN were ma rauding."
+        assert stance_metadata(label, text)["loaded_terms"] == "renegade red men; marauding"
+
     def test_period_terms_added_without_duplicates(self):
         label = {**LABEL, "loaded_terms": ["Squaw"]}
         metadata = stance_metadata(label, "The squaw sat by the redskins' camp.")
@@ -70,7 +83,8 @@ class TestStanceMetadata:
 
     def test_model_terms_capped(self):
         label = {**LABEL, "loaded_terms": [f"term {i}" for i in range(8)]}
-        assert stance_metadata(label, "")["loaded_terms"].count(";") == 4
+        text = " ".join(f"term {i}" for i in range(8))
+        assert stance_metadata(label, text)["loaded_terms"].count(";") == 4
 
 
 class TestLabelChunks:
