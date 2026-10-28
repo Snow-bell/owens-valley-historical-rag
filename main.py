@@ -7,7 +7,7 @@ from src.chunk import chunk_documents
 from src.embed import embed_and_store, get_chroma_collection, reset_collection
 from src.config import CHUNK_METHOD, CHROMA_COLLECTION, STANCE_LABELS
 from src.retrieve import retrieve
-from src.generate import generate
+from src.generate import generate, format_stance
 from src.stance import label_chunks
 
 console = Console()
@@ -41,10 +41,11 @@ def check_corpus_populated() -> bool:
     return collection.count() > 0
 
 
-def query_loop() -> None:
+def query_loop(verbose: bool = False) -> None:
     """
     Interactive query loop. Retrieves and generates answers
-    until the user exits.
+    until the user exits. verbose adds each retrieved chunk's stance labels
+    after the sources.
     """
     console.print(Panel(
         "[bold]Owens Valley Historical Research Assistant[/bold]\n"
@@ -88,6 +89,14 @@ def query_loop() -> None:
             border_style="yellow",
         ))
 
+        if verbose:
+            # Text, not markup: quoted loaded terms can contain square brackets
+            console.print(Panel(
+                Text(format_stance(chunks)),
+                title="[bold magenta]Source stance[/bold magenta]",
+                border_style="magenta",
+            ))
+
 
 def main() -> None:
     """
@@ -102,7 +111,7 @@ def main() -> None:
         )
         index_corpus()
 
-    query_loop()
+    query_loop(verbose="--verbose" in sys.argv)
 
 
 if __name__ == "__main__":

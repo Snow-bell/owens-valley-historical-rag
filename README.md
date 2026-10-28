@@ -101,6 +101,12 @@ Once indexed the tool enters an interactive query loop:
 Research question: What did Paiute families eat during winter months?
 ```
 
+Answers cite sources by title and printed page, e.g. (The Story of Inyo, p. 32). To also see each retrieved passage's stance labels (its stance toward the Paiute, Los Angeles and the settlers, loaded terms and framing) after the sources:
+
+```bash
+python main.py --verbose
+```
+
 ### Run evaluation
 
 ```bash
